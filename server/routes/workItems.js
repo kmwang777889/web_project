@@ -998,7 +998,7 @@ router.get('/export', authenticate, async (req, res) => {
     
     // 生成文件名
     const timestamp = new Date().getTime();
-    const filename = `工作项导出_${timestamp}.xlsx`;
+    const filename = `工作项_${timestamp}.xlsx`;
     const safeFilename = `workitems_export_${timestamp}.xlsx`;
     const filepath = path.join(uploadsDir, safeFilename);
     

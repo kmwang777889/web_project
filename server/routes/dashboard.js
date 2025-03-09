@@ -43,15 +43,15 @@ router.get('/stats', authenticate, async (req, res) => {
       where: {
         ...whereClause,
         status: '已完成',
-        updated_at: {
+        updatedAt: {
           [Op.gte]: thirtyDaysAgo
         }
       },
       attributes: [
-        [Sequelize.fn('DATE', Sequelize.col('updated_at')), 'date'],
+        [Sequelize.fn('DATE', Sequelize.col('updatedAt')), 'date'],
         [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']
       ],
-      group: [Sequelize.fn('DATE', Sequelize.col('updated_at'))],
+      group: [Sequelize.fn('DATE', Sequelize.col('updatedAt'))],
       raw: true
     });
     
