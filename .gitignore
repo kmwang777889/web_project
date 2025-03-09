@@ -1,0 +1,40 @@
+# 依赖目录
+node_modules/
+*/node_modules/
+
+# 缓存文件
+.cache/
+*/.cache/
+*/node_modules/.cache/
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 日志文件
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 构建输出
+/build
+/dist
+/client/build
+/client/dist
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器目录和文件
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 上传文件目录（如果不需要版本控制）
+/server/uploads/*
+!/server/uploads/.gitkeep 
