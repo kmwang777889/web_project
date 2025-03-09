@@ -405,7 +405,154 @@ router.post(
   }
 );
 
-// 获取单个工作项详情
+// 先定义具体路由
+router.get('/export', authenticate, async (req, res) => {
+  try {
+    console.log('收到导出请求，查询参数:', req.query);
+    
+    // 确保导出目录存在
+    const uploadsDir = path.join(__dirname, '../public/exports');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      console.log('创建工作项导出目录:', uploadsDir);
+    }
+    
+    // 构建查询条件 - 简化为空对象，导出所有工作项
+    let whereClause = {};
+    
+    // 如果是普通用户，只能导出自己创建的工作项
+    if (req.user.role === 'user') {
+      whereClause.createdById = req.user.id;
+    }
+    
+    console.log('查询条件:', whereClause);
+    
+    // 查询工作项数据
+    const workItems = await WorkItem.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'assignee',
+          attributes: ['id', 'username']
+        },
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'username']
+        },
+        {
+          model: Project,
+          attributes: ['id', 'name']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    
+    console.log(`查询到 ${workItems.length} 个工作项`);
+    
+    if (workItems.length === 0) {
+      return res.status(404).json({ message: '没有找到工作项，请先创建工作项' });
+    }
+    
+    // 打印第一个工作项的信息，帮助调试
+    if (workItems.length > 0) {
+      console.log('第一个工作项:', JSON.stringify(workItems[0], null, 2));
+    }
+    
+    // 创建Excel工作簿和工作表
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('工作项列表');
+    
+    // 设置列头
+    worksheet.columns = [
+      { header: 'ID', key: 'id', width: 10 },
+      { header: '标题', key: 'title', width: 30 },
+      { header: '类型', key: 'type', width: 15 },
+      { header: '状态', key: 'status', width: 15 },
+      { header: '优先级', key: 'priority', width: 15 },
+      { header: '项目', key: 'project', width: 20 },
+      { header: '创建者', key: 'creator', width: 15 },
+      { header: '负责人', key: 'assignee', width: 15 },
+      { header: '需求来源', key: 'source', width: 15 },
+      { header: '创建日期', key: 'createdAt', width: 20 },
+      { header: '期望完成日期', key: 'expectedCompletionDate', width: 20 },
+      { header: '排期开始日期', key: 'scheduledStartDate', width: 20 },
+      { header: '排期结束日期', key: 'scheduledEndDate', width: 20 },
+      { header: '最后更新日期', key: 'updatedAt', width: 20 },
+      { header: '描述', key: 'description', width: 40 }
+    ];
+    
+    // 设置表头样式
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    
+    // 添加数据
+    workItems.forEach(item => {
+      worksheet.addRow({
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        status: item.status,
+        priority: item.priority,
+        project: item.Project ? item.Project.name : '',
+        creator: item.creator ? item.creator.username : '',
+        assignee: item.assignee ? item.assignee.username : '',
+        source: item.source || '',
+        createdAt: item.createdAt ? new Date(item.createdAt).toLocaleString() : '',
+        expectedCompletionDate: item.expectedCompletionDate ? new Date(item.expectedCompletionDate).toLocaleDateString() : '',
+        scheduledStartDate: item.scheduledStartDate ? new Date(item.scheduledStartDate).toLocaleDateString() : '',
+        scheduledEndDate: item.scheduledEndDate ? new Date(item.scheduledEndDate).toLocaleDateString() : '',
+        updatedAt: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '',
+        description: item.description || ''
+      });
+    });
+    
+    // 生成文件名
+    const timestamp = new Date().getTime();
+    const filename = `工作项_${timestamp}.xlsx`;
+    const safeFilename = `workitems_export_${timestamp}.xlsx`;
+    const filepath = path.join(uploadsDir, safeFilename);
+    
+    console.log('保存Excel文件到:', filepath);
+    
+    try {
+      // 保存Excel文件
+      await workbook.xlsx.writeFile(filepath);
+      
+      // 检查文件是否成功创建
+      if (fs.existsSync(filepath)) {
+        console.log('Excel文件已成功创建，文件大小:', fs.statSync(filepath).size, '字节');
+      } else {
+        throw new Error('文件未成功创建');
+      }
+      
+      // 返回文件下载URL
+      const downloadUrl = `/exports/${safeFilename}`;
+      console.log('下载URL:', downloadUrl);
+      
+      res.json({
+        message: `已成功导出 ${workItems.length} 个工作项`,
+        count: workItems.length,
+        success: true,
+        downloadUrl,
+        filename: filename // 发送原始中文文件名给前端
+      });
+    } catch (fileError) {
+      console.error('保存Excel文件错误:', fileError);
+      res.status(500).json({ message: '保存Excel文件失败: ' + fileError.message });
+    }
+  } catch (error) {
+    console.error('导出工作项错误:', error);
+    res.status(500).json({ message: '服务器错误: ' + error.message });
+  }
+});
+
+// 再定义通用路由
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -893,139 +1040,6 @@ router.delete('/:id/attachments/:attachmentId', authenticate, async (req, res) =
   } catch (error) {
     console.error('删除附件错误:', error);
     res.status(500).json({ message: '服务器错误' });
-  }
-});
-
-// 导出工作项为Excel
-router.get('/export', authenticate, async (req, res) => {
-  try {
-    console.log('收到导出请求，查询参数:', req.query);
-    
-    // 构建查询条件 - 简化为空对象，导出所有工作项
-    let whereClause = {};
-    
-    // 如果是普通用户，只能导出自己创建的工作项
-    if (req.user.role === 'user') {
-      whereClause.createdById = req.user.id;
-    }
-    
-    console.log('查询条件:', whereClause);
-    
-    // 查询工作项数据
-    const workItems = await WorkItem.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: User,
-          as: 'assignee',
-          attributes: ['id', 'username']
-        },
-        {
-          model: User,
-          as: 'creator',
-          attributes: ['id', 'username']
-        },
-        {
-          model: Project,
-          attributes: ['id', 'name']
-        }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-    
-    console.log(`查询到 ${workItems.length} 个工作项`);
-    
-    if (workItems.length === 0) {
-      return res.status(404).json({ message: '没有找到工作项，请先创建工作项' });
-    }
-    
-    // 打印第一个工作项的信息，帮助调试
-    if (workItems.length > 0) {
-      console.log('第一个工作项:', JSON.stringify(workItems[0], null, 2));
-    }
-    
-    // 创建Excel工作簿和工作表
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('工作项列表');
-    
-    // 设置列头
-    worksheet.columns = [
-      { header: 'ID', key: 'id', width: 10 },
-      { header: '标题', key: 'title', width: 30 },
-      { header: '类型', key: 'type', width: 15 },
-      { header: '状态', key: 'status', width: 15 },
-      { header: '优先级', key: 'priority', width: 15 },
-      { header: '项目', key: 'project', width: 20 },
-      { header: '创建者', key: 'creator', width: 15 },
-      { header: '负责人', key: 'assignee', width: 15 },
-      { header: '需求来源', key: 'source', width: 15 },
-      { header: '创建日期', key: 'createdAt', width: 20 },
-      { header: '期望完成日期', key: 'expectedCompletionDate', width: 20 },
-      { header: '排期开始日期', key: 'scheduledStartDate', width: 20 },
-      { header: '排期结束日期', key: 'scheduledEndDate', width: 20 },
-      { header: '最后更新日期', key: 'updatedAt', width: 20 },
-      { header: '描述', key: 'description', width: 40 }
-    ];
-    
-    // 设置表头样式
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
-    
-    // 添加数据
-    workItems.forEach(item => {
-      worksheet.addRow({
-        id: item.id,
-        title: item.title,
-        type: item.type,
-        status: item.status,
-        priority: item.priority,
-        project: item.Project ? item.Project.name : '',
-        creator: item.creator ? item.creator.username : '',
-        assignee: item.assignee ? item.assignee.username : '',
-        source: item.source || '',
-        createdAt: item.createdAt ? new Date(item.createdAt).toLocaleString() : '',
-        expectedCompletionDate: item.expectedCompletionDate ? new Date(item.expectedCompletionDate).toLocaleDateString() : '',
-        scheduledStartDate: item.scheduledStartDate ? new Date(item.scheduledStartDate).toLocaleDateString() : '',
-        scheduledEndDate: item.scheduledEndDate ? new Date(item.scheduledEndDate).toLocaleDateString() : '',
-        updatedAt: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '',
-        description: item.description || ''
-      });
-    });
-    
-    // 生成文件名
-    const timestamp = new Date().getTime();
-    const filename = `工作项_${timestamp}.xlsx`;
-    const safeFilename = `workitems_export_${timestamp}.xlsx`;
-    const filepath = path.join(uploadsDir, safeFilename);
-    
-    console.log('保存Excel文件到:', filepath);
-    
-    try {
-      // 保存Excel文件
-      await workbook.xlsx.writeFile(filepath);
-      
-      // 返回文件下载URL
-      const downloadUrl = `/exports/${safeFilename}`;
-      console.log('下载URL:', downloadUrl);
-      
-      res.json({
-        message: `已成功导出 ${workItems.length} 个工作项`,
-        count: workItems.length,
-        success: true,
-        downloadUrl,
-        filename: filename // 发送原始中文文件名给前端
-      });
-    } catch (fileError) {
-      console.error('保存Excel文件错误:', fileError);
-      res.status(500).json({ message: '保存Excel文件失败: ' + fileError.message });
-    }
-  } catch (error) {
-    console.error('导出工作项错误:', error);
-    res.status(500).json({ message: '服务器错误: ' + error.message });
   }
 });
 

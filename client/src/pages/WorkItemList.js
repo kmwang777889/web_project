@@ -366,13 +366,26 @@ const WorkItemList = () => {
         return;
       }
       
+      console.log('开始导出工作项，过滤条件:', filters);
+      
       // 调用服务器端导出API
       const response = await api.exportWorkItems(filters);
+      console.log('导出API响应:', response);
       
       if (response && response.success && response.downloadUrl) {
         // 使用API工具中的下载函数
-        api.downloadFile(response.downloadUrl, response.filename || `工作项导出_${new Date().toLocaleDateString()}.xlsx`);
-        message.success({ content: response.message || `已成功导出 ${response.count} 个工作项`, key: 'exportLoading' });
+        try {
+          console.log('开始下载文件:', response.downloadUrl);
+          api.downloadFile(response.downloadUrl, response.filename || `工作项导出_${new Date().toLocaleDateString()}.xlsx`);
+          message.success({ content: response.message || `已成功导出 ${response.count} 个工作项`, key: 'exportLoading' });
+        } catch (downloadError) {
+          console.error('下载文件失败:', downloadError);
+          message.error({ 
+            content: `导出成功但下载失败: ${downloadError.message}。请尝试直接访问 ${window.location.origin}${response.downloadUrl}`, 
+            key: 'exportLoading',
+            duration: 10
+          });
+        }
       } else {
         throw new Error('导出失败，未获取到下载链接');
       }
@@ -388,7 +401,7 @@ const WorkItemList = () => {
       message.error({ 
         content: errorMsg, 
         key: 'exportLoading',
-        duration: 5 // 显示时间更长，便于用户阅读
+        duration: 10
       });
     }
   };

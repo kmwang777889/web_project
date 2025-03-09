@@ -240,13 +240,39 @@ export default {
   
   // 下载文件辅助函数
   downloadFile: (url, filename) => {
-    const fullUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${url}`;
-    const link = document.createElement('a');
-    link.href = fullUrl;
-    link.setAttribute('download', filename || '下载文件');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      console.log('开始下载文件:', { url, filename });
+      
+      // 确保URL以/开头
+      if (!url.startsWith('/')) {
+        url = '/' + url;
+      }
+      
+      const fullUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${url}`;
+      console.log('完整下载URL:', fullUrl);
+      
+      // 创建一个隐藏的a标签用于下载
+      const link = document.createElement('a');
+      link.href = fullUrl;
+      link.setAttribute('download', filename || '下载文件');
+      link.setAttribute('target', '_blank'); // 添加target属性，在新窗口打开
+      
+      // 添加到DOM并触发点击
+      document.body.appendChild(link);
+      console.log('触发下载链接点击');
+      link.click();
+      
+      // 清理DOM
+      setTimeout(() => {
+        document.body.removeChild(link);
+        console.log('下载链接已从DOM中移除');
+      }, 100);
+      
+      return true;
+    } catch (error) {
+      console.error('下载文件失败:', error);
+      throw new Error('下载文件失败: ' + error.message);
+    }
   },
   
   // 工单相关
