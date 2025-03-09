@@ -194,43 +194,33 @@ export default {
   },
   createWorkItem: (data) => apiRequest('post', '/work-items', data),
   getWorkItemById: (id) => apiRequest('get', `/work-items/${id}`),
-  updateWorkItem: async (id, formData) => {
+  updateWorkItem: async (id, data) => {
     console.log(`准备更新工作项 ID: ${id}`);
-    console.log('FormData 内容检查:');
     
-    // 检查FormData是否包含文件
-    let hasFiles = false;
-    for (let pair of formData.entries()) {
-      console.log(pair[0], typeof pair[1] === 'string' ? pair[1] : '[文件对象]');
-      if (pair[0] === 'attachments') {
-        hasFiles = true;
-        const file = pair[1];
-        console.log('文件详情:', {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          lastModified: file.lastModified
-        });
-      }
-    }
-    
-    if (!hasFiles) {
-      console.warn('警告: FormData 中没有文件');
+    let requestData;
+    // 检查是否已经是 FormData 实例
+    if (data instanceof FormData) {
+      requestData = data;
+    } else {
+      // 如果是普通对象，转换为 FormData
+      requestData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          requestData.append(key, value);
+        }
+      });
     }
     
     try {
-      // 确保设置了正确的 Content-Type
       const headers = {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
-        // 不要手动设置 Content-Type，让浏览器自动设置
       };
       
       console.log('发送请求头:', headers);
       
-      const response = await axios.put(`/work-items/${id}`, formData, {
+      const response = await axios.put(`/work-items/${id}`, requestData, {
         baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
         headers,
-        // 添加这些选项以确保文件正确上传
         maxContentLength: Infinity,
         maxBodyLength: Infinity
       });
