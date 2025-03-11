@@ -18,7 +18,9 @@ import {
   Divider,
   Typography,
   Upload,
-  Image
+  Image,
+  Tabs,
+  Timeline
 } from 'antd';
 import { 
   EditOutlined, 
@@ -34,7 +36,10 @@ import {
   SendOutlined,
   UserOutlined,
   EyeOutlined,
-  PlusOutlined
+  PlusOutlined,
+  CommentOutlined,
+  ClockCircleOutlined,
+  TagOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -44,6 +49,7 @@ import api from '../utils/api';
 const { Option } = Select;
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
+const { TabPane } = Tabs;
 
 // 优先级标签渲染
 const renderPriorityTag = (priority) => {
@@ -145,6 +151,9 @@ const WorkItemDetail = () => {
   const [previewImage, setPreviewImage] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
   
+  const [activities, setActivities] = useState([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  
   // 获取工作项详情
   const fetchWorkItem = async () => {
     try {
@@ -207,11 +216,28 @@ const WorkItemDetail = () => {
     }
   };
   
+  // 获取工作项活动历史
+  const fetchActivities = async () => {
+    try {
+      setLoadingActivities(true);
+      const data = await api.getWorkItemActivities(id);
+      setActivities(data);
+    } catch (error) {
+      console.error('获取活动历史失败:', error);
+      message.error('获取活动历史失败');
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+  
   // 初始加载
   useEffect(() => {
     fetchWorkItem();
     fetchProjects();
     fetchAdmins();
+    if (id) {
+      fetchActivities();
+    }
   }, [id]);
   
   // 打开编辑工作项模态框
@@ -284,12 +310,30 @@ const WorkItemDetail = () => {
       // 创建FormData对象用于文件上传
       const formData = new FormData();
       
-      // 添加基本字段
+      // 只添加实际修改的字段
       Object.keys(values).forEach(key => {
         // 跳过attachments字段，单独处理
         if (key !== 'attachments' && values[key] !== undefined && values[key] !== null) {
-          formData.append(key, values[key]);
-          console.log(`添加字段 ${key}:`, values[key]);
+          // 检查字段值是否发生变化
+          let isChanged = false;
+          
+          // 日期字段特殊处理
+          if (key.includes('Date') && workItem[key]) {
+            // 将两个日期都转换为YYYY-MM-DD格式进行比较
+            const formattedNewValue = values[key];
+            const formattedOldValue = new Date(workItem[key]).toISOString().split('T')[0];
+            isChanged = formattedNewValue !== formattedOldValue;
+          } else {
+            // 其他字段直接比较字符串
+            isChanged = String(values[key]) !== String(workItem[key]);
+          }
+          
+          if (isChanged) {
+            formData.append(key, values[key]);
+            console.log(`添加已修改字段 ${key}:`, values[key], '原值:', workItem[key]);
+          } else {
+            console.log(`跳过未修改字段 ${key}`);
+          }
         }
       });
       
@@ -378,6 +422,7 @@ const WorkItemDetail = () => {
       setTimeout(() => {
         console.log('重新获取工作项数据...');
         fetchWorkItem(); // 重新获取工作项数据
+        fetchActivities(); // 重新获取活动历史
       }, 1000);
     } catch (error) {
       console.error('更新工作项失败:', error);
@@ -411,6 +456,7 @@ const WorkItemDetail = () => {
       message.success('评论添加成功');
       setCommentValue('');
       fetchWorkItem();
+      fetchActivities(); // 重新获取活动历史
     } catch (error) {
       console.error('添加评论失败:', error);
       message.error('添加评论失败: ' + error.message);
@@ -425,6 +471,7 @@ const WorkItemDetail = () => {
       await api.deleteWorkItemAttachment(id, attachmentId);
       message.success('附件删除成功');
       fetchWorkItem();
+      fetchActivities(); // 重新获取活动历史
     } catch (error) {
       console.error('删除附件失败:', error);
       message.error('删除附件失败: ' + error.message);
@@ -449,6 +496,87 @@ const WorkItemDetail = () => {
   // 关闭图片预览
   const handlePreviewCancel = () => {
     setPreviewVisible(false);
+  };
+  
+  // 渲染活动图标
+  const renderActivityIcon = (type) => {
+    switch (type) {
+      case 'create':
+        return <PlusOutlined style={{ color: '#52c41a' }} />;
+      case 'update':
+        return <EditOutlined style={{ color: '#1890ff' }} />;
+      case 'status_change':
+        return <TagOutlined style={{ color: '#722ed1' }} />;
+      case 'assignee_change':
+        return <UserOutlined style={{ color: '#fa8c16' }} />;
+      case 'comment':
+        return <CommentOutlined style={{ color: '#13c2c2' }} />;
+      case 'attachment_add':
+        return <FileOutlined style={{ color: '#1890ff' }} />;
+      case 'attachment_delete':
+        return <DeleteOutlined style={{ color: '#ff4d4f' }} />;
+      default:
+        return <ClockCircleOutlined />;
+    }
+  };
+  
+  // 字段名称翻译
+  const translateFieldName = (fieldName) => {
+    const fieldMap = {
+      'title': '标题',
+      'description': '描述',
+      'type': '类型',
+      'status': '状态',
+      'priority': '紧急程度',
+      'source': '需求来源',
+      'estimatedHours': '预估工时',
+      'actualHours': '实际工时',
+      'scheduledStartDate': '排期开始日期',
+      'scheduledEndDate': '排期结束日期',
+      'expectedCompletionDate': '期望完成日期',
+      'completionDate': '实际完成日期',
+      'projectId': '所属项目',
+      'assigneeId': '负责人'
+    };
+    
+    return fieldMap[fieldName] || fieldName;
+  };
+  
+  // 格式化活动描述
+  const formatActivityDescription = (activity) => {
+    if (!activity.field) {
+      return activity.description;
+    }
+    
+    // 替换描述中的字段名称
+    const fieldDisplayName = translateFieldName(activity.field);
+    
+    // 根据活动类型格式化描述
+    switch (activity.type) {
+      case 'create':
+        return `创建了工作项`;
+      case 'update':
+        // 对于日期字段，格式化显示
+        if (activity.field.includes('Date')) {
+          const oldValue = activity.oldValue ? new Date(activity.oldValue).toLocaleDateString() : '空';
+          const newValue = activity.newValue ? new Date(activity.newValue).toLocaleDateString() : '空';
+          return `修改了 ${fieldDisplayName} 字段，从 "${oldValue}" 修改为 "${newValue}"`;
+        }
+        // 对于普通字段
+        return `修改了 ${fieldDisplayName} 字段，从 "${activity.oldValue || '空'}" 修改为 "${activity.newValue}"`;
+      case 'status_change':
+        return `将状态从 "${activity.oldValue}" 修改为 "${activity.newValue}"`;
+      case 'assignee_change':
+        return activity.description.replace(activity.field, fieldDisplayName);
+      case 'comment':
+        return `添加了评论: "${activity.newValue}"`;
+      case 'attachment_add':
+        return `添加了附件: "${activity.newValue}"`;
+      case 'attachment_delete':
+        return `删除了附件: "${activity.oldValue}"`;
+      default:
+        return activity.description.replace(activity.field, fieldDisplayName);
+    }
   };
   
   if (loading) {
@@ -556,128 +684,158 @@ const WorkItemDetail = () => {
         </div>
       </Card>
       
-      <Card title="详细信息" style={{ marginTop: 16 }}>
-        <Descriptions bordered column={2}>
-          <Descriptions.Item label="预估工时" span={1}>
-            {workItem.estimatedHours ? `${workItem.estimatedHours}小时` : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="实际工时" span={1}>
-            {workItem.actualHours ? `${workItem.actualHours}小时` : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="排期开始日期" span={1}>
-            {workItem.scheduledStartDate ? new Date(workItem.scheduledStartDate).toLocaleDateString() : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="排期结束日期" span={1}>
-            {workItem.scheduledEndDate ? new Date(workItem.scheduledEndDate).toLocaleDateString() : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="期望完成日期" span={1}>
-            {workItem.expectedCompletionDate ? new Date(workItem.expectedCompletionDate).toLocaleDateString() : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="实际完成日期" span={1}>
-            {workItem.completionDate ? new Date(workItem.completionDate).toLocaleDateString() : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="描述" span={2}>
-            <div style={{ whiteSpace: 'pre-wrap' }}>
-              {workItem.description || '无描述'}
-            </div>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-      
-      {/* 附件 */}
-      <Card title="附件" style={{ marginTop: 16 }} className="work-item-detail-attachments">
-        {workItem.attachments && workItem.attachments.length > 0 ? (
-          <div className="file-upload-list">
-            {workItem.attachments.map((attachment, index) => (
-              <div key={index} className="file-list-item" style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                padding: '12px', 
-                borderBottom: '1px solid #f0f0f0',
-                transition: 'background-color 0.3s',
-                borderRadius: '4px',
-                marginBottom: '8px',
-                backgroundColor: '#fafafa'
-              }}>
-                <div className="file-icon" style={{ marginRight: '12px' }}>
-                  {attachment.mimetype.startsWith('image/') ? (
-                    <div 
-                      style={{ 
-                        width: '60px', 
-                        height: '60px', 
-                        overflow: 'hidden',
-                        borderRadius: '4px',
-                        border: '1px solid #d9d9d9',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => handlePreview(attachment)}
-                    >
-                      <img 
-                        src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${attachment.path}`} 
-                        alt={attachment.originalName}
-                        style={{ 
-                          maxWidth: '100%', 
-                          maxHeight: '100%',
-                          objectFit: 'cover'
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    renderFileIcon(attachment.mimetype)
-                  )}
+      <Card style={{ marginTop: 16 }}>
+        <Tabs defaultActiveKey="details">
+          <TabPane tab="详情" key="details">
+            <Descriptions bordered column={2}>
+              <Descriptions.Item label="预估工时" span={1}>
+                {workItem.estimatedHours ? `${workItem.estimatedHours}小时` : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="实际工时" span={1}>
+                {workItem.actualHours ? `${workItem.actualHours}小时` : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="排期开始日期" span={1}>
+                {workItem.scheduledStartDate ? new Date(workItem.scheduledStartDate).toLocaleDateString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="排期结束日期" span={1}>
+                {workItem.scheduledEndDate ? new Date(workItem.scheduledEndDate).toLocaleDateString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="期望完成日期" span={1}>
+                {workItem.expectedCompletionDate ? new Date(workItem.expectedCompletionDate).toLocaleDateString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="实际完成日期" span={1}>
+                {workItem.completionDate ? new Date(workItem.completionDate).toLocaleDateString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="描述" span={2}>
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {workItem.description || '无描述'}
                 </div>
-                <div className="file-info" style={{ flex: 1 }}>
-                  <div className="file-name" style={{ fontWeight: 'bold' }}>{attachment.originalName}</div>
-                  <div className="file-size" style={{ color: '#888', fontSize: '12px' }}>
-                    {(attachment.size / 1024).toFixed(2)} KB
-                  </div>
-                </div>
-                <div className="file-actions">
-                  {attachment.mimetype.startsWith('image/') && (
-                    <Button
-                      type="link"
-                      icon={<EyeOutlined />}
-                      onClick={() => handlePreview(attachment)}
-                    >
-                      预览
-                    </Button>
-                  )}
-                  <Button 
-                    type="link" 
-                    icon={<DownloadOutlined />}
-                    href={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${attachment.path}`}
-                    target="_blank"
+              </Descriptions.Item>
+            </Descriptions>
+          </TabPane>
+          
+          <TabPane tab="活动" key="activities">
+            {loadingActivities ? (
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <Spin />
+              </div>
+            ) : (
+              <Timeline>
+                {activities.map(activity => (
+                  <Timeline.Item
+                    key={activity.id}
+                    dot={renderActivityIcon(activity.type)}
                   >
-                    下载
-                  </Button>
-                  {hasEditPermission() && (
-                    <Popconfirm
-                      title="确定要删除此附件吗？"
-                      onConfirm={() => handleDeleteAttachment(attachment.filename)}
-                      okText="确定"
-                      cancelText="取消"
-                    >
+                    <div style={{ marginBottom: 8 }}>
+                      <span style={{ marginRight: 8 }}>
+                        <strong>{activity.User.username}</strong>
+                      </span>
+                      <span style={{ color: '#8c8c8c' }}>
+                        {new Date(activity.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div>{formatActivityDescription(activity)}</div>
+                  </Timeline.Item>
+                ))}
+              </Timeline>
+            )}
+          </TabPane>
+          
+          <TabPane tab="附件" key="attachments">
+            {workItem.attachments && workItem.attachments.length > 0 ? (
+              <div className="file-upload-list">
+                {workItem.attachments.map((attachment, index) => (
+                  <div key={index} className="file-list-item" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    padding: '12px', 
+                    borderBottom: '1px solid #f0f0f0',
+                    transition: 'background-color 0.3s',
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    backgroundColor: '#fafafa'
+                  }}>
+                    <div className="file-icon" style={{ marginRight: '12px' }}>
+                      {attachment.mimetype.startsWith('image/') ? (
+                        <div 
+                          style={{ 
+                            width: '60px', 
+                            height: '60px', 
+                            overflow: 'hidden',
+                            borderRadius: '4px',
+                            border: '1px solid #d9d9d9',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => handlePreview(attachment)}
+                        >
+                          <img 
+                            src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${attachment.path}`} 
+                            alt={attachment.originalName}
+                            style={{ 
+                              maxWidth: '100%', 
+                              maxHeight: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        renderFileIcon(attachment.mimetype)
+                      )}
+                    </div>
+                    <div className="file-info" style={{ flex: 1 }}>
+                      <div className="file-name" style={{ fontWeight: 'bold' }}>{attachment.originalName}</div>
+                      <div className="file-size" style={{ color: '#888', fontSize: '12px' }}>
+                        {(attachment.size / 1024).toFixed(2)} KB
+                      </div>
+                    </div>
+                    <div className="file-actions">
+                      {attachment.mimetype.startsWith('image/') && (
+                        <Button
+                          type="link"
+                          icon={<EyeOutlined />}
+                          onClick={() => handlePreview(attachment)}
+                        >
+                          预览
+                        </Button>
+                      )}
                       <Button 
                         type="link" 
-                        danger
-                        icon={<DeleteOutlined />}
+                        icon={<DownloadOutlined />}
+                        href={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${attachment.path}`}
+                        target="_blank"
                       >
-                        删除
+                        下载
                       </Button>
-                    </Popconfirm>
-                  )}
-                </div>
+                      {hasEditPermission() && (
+                        <Popconfirm
+                          title="确定要删除此附件吗？"
+                          onConfirm={() => handleDeleteAttachment(attachment.filename)}
+                          okText="确定"
+                          cancelText="取消"
+                        >
+                          <Button 
+                            type="link" 
+                            danger
+                            icon={<DeleteOutlined />}
+                          >
+                            删除
+                          </Button>
+                        </Popconfirm>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: '#999' }}>
-            暂无附件
-          </div>
-        )}
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#999' }}>
+                暂无附件
+              </div>
+            )}
+          </TabPane>
+        </Tabs>
       </Card>
       
       {/* 评论 */}

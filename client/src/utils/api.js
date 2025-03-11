@@ -237,6 +237,7 @@ export default {
   addWorkItemComment: (id, data) => apiRequest('post', `/work-items/${id}/comments`, data),
   deleteWorkItemAttachment: (id, attachmentId) => apiRequest('delete', `/work-items/${id}/attachments/${attachmentId}`),
   exportWorkItems: (params) => apiRequest('get', '/work-items/export', null, { params }),
+  getWorkItemActivities: (id) => apiRequest('get', `/work-items/${id}/activities`),
   
   // 下载文件辅助函数
   downloadFile: (url, filename) => {

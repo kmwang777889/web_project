@@ -2,6 +2,7 @@ const User = require('./User');
 const Project = require('./Project');
 const WorkItem = require('./WorkItem');
 const Ticket = require('./Ticket');
+const WorkItemActivity = require('./WorkItemActivity');
 const { sequelize } = require('../config/database');
 
 // 在建立关联关系之前，确保所有模型都已经初始化
@@ -70,11 +71,32 @@ Ticket.belongsTo(User, {
   as: 'creator'
 });
 
+// 定义WorkItem和WorkItemActivity之间的关系
+WorkItem.hasMany(WorkItemActivity, {
+  foreignKey: 'workItemId',
+  onDelete: 'CASCADE' // 当工作项被删除时，级联删除相关活动记录
+});
+
+WorkItemActivity.belongsTo(WorkItem, {
+  foreignKey: 'workItemId'
+});
+
+// 定义User和WorkItemActivity之间的关系
+User.hasMany(WorkItemActivity, {
+  foreignKey: 'userId',
+  onDelete: 'CASCADE' // 当用户被删除时，级联删除相关活动记录
+});
+
+WorkItemActivity.belongsTo(User, {
+  foreignKey: 'userId'
+});
+
 // Export models and sequelize instance
 module.exports = {
   sequelize,
   User,
   Project,
   WorkItem,
-  Ticket
+  Ticket,
+  WorkItemActivity
 }; 

@@ -1,12 +1,34 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
-const { WorkItem, User, Project } = require('../models');
+const { WorkItem, User, Project, WorkItemActivity } = require('../models');
 const { authenticate, isAdmin, isCreatorOrAdmin } = require('../middleware/auth');
 const { upload, handleUploadError, logUploadRequest } = require('../middleware/upload');
 const { Op } = require('sequelize');
 const ExcelJS = require('exceljs');
 const path = require('path');
 const fs = require('fs');
+
+// 获取字段的显示名称
+function getFieldDisplayName(field) {
+  const fieldMap = {
+    'title': '标题',
+    'description': '描述',
+    'type': '类型',
+    'status': '状态',
+    'priority': '紧急程度',
+    'source': '需求来源',
+    'estimatedHours': '预估工时',
+    'actualHours': '实际工时',
+    'scheduledStartDate': '排期开始日期',
+    'scheduledEndDate': '排期结束日期',
+    'expectedCompletionDate': '期望完成日期',
+    'completionDate': '实际完成日期',
+    'projectId': '所属项目',
+    'assigneeId': '负责人'
+  };
+  
+  return fieldMap[field] || field;
+}
 
 // 确保上传目录存在
 const uploadsDir = path.join(__dirname, '../public/exports');
@@ -390,6 +412,31 @@ router.post(
         attachments
       });
       
+      // 记录创建活动
+      await recordActivity(
+        workItem.id,
+        req.user.id,
+        'create',
+        null,
+        null,
+        null,
+        `创建了工作项 "${workItem.title}"`
+      );
+      
+      // 如果指定了负责人，记录分配活动
+      if (assigneeId) {
+        const assignee = await User.findByPk(assigneeId);
+        await recordActivity(
+          workItem.id,
+          req.user.id,
+          'assignee_change',
+          'assigneeId',
+          null,
+          assigneeId,
+          `将工作项分配给 ${assignee.username}`
+        );
+      }
+      
       console.log('工作项创建成功，ID:', workItem.id);
       console.log('===== 工作项创建完成 =====');
       
@@ -685,24 +732,53 @@ router.put(
       // 准备更新数据
       const updateData = {};
       
-      // 更新基本字段
+      // 记录字段变更
       const fields = [
         'title', 'type', 'description', 'status', 'priority', 'source',
         'expectedCompletionDate', 'scheduledStartDate', 'scheduledEndDate',
         'projectId', 'assigneeId', 'estimatedHours', 'actualHours'
       ];
       
-      fields.forEach(field => {
-        if (req.body[field] !== undefined) {
+      for (const field of fields) {
+        if (req.body[field] !== undefined && req.body[field] !== workItem[field]) {
           updateData[field] = req.body[field];
           console.log(`更新字段 ${field}:`, req.body[field]);
+          
+          // 对特殊字段进行特殊处理
+          if (field === 'status') {
+            await recordActivity(
+              id,
+              req.user.id,
+              'status_change',
+              field,
+              workItem[field],
+              req.body[field],
+              `将状态从 "${workItem[field]}" 修改为 "${req.body[field]}"`
+            );
+          } else if (field === 'assigneeId') {
+            const oldAssignee = workItem.assigneeId ? await User.findByPk(workItem.assigneeId) : null;
+            const newAssignee = req.body[field] ? await User.findByPk(req.body[field]) : null;
+            await recordActivity(
+              id,
+              req.user.id,
+              'assignee_change',
+              field,
+              workItem[field],
+              req.body[field],
+              `将负责人从 ${oldAssignee ? oldAssignee.username : '未分配'} 修改为 ${newAssignee ? newAssignee.username : '未分配'}`
+            );
+          } else {
+            await recordActivity(
+              id,
+              req.user.id,
+              'update',
+              field,
+              workItem[field],
+              req.body[field],
+              `修改了 ${getFieldDisplayName(field)} 字段，从 "${workItem[field] || '空'}" 修改为 "${req.body[field]}"`
+            );
+          }
         }
-      });
-      
-      // 如果状态变为已完成，记录完成时间
-      if (updateData.status === '已完成' && workItem.status !== '已完成') {
-        updateData.completionDate = new Date();
-        console.log('设置完成时间:', updateData.completionDate);
       }
       
       // 处理附件
@@ -869,6 +945,17 @@ router.put(
               }
             }
           }
+          
+          // 记录添加附件的活动
+          await recordActivity(
+            id,
+            req.user.id,
+            'attachment_add',
+            'attachments',
+            null,
+            file.originalname,
+            `添加了附件 "${file.originalname}"`
+          );
         }
       }
       
@@ -879,13 +966,36 @@ router.put(
       
       // 处理评论
       if (req.body.comment) {
-        try {
-          const comment = JSON.parse(req.body.comment);
-          const comments = workItem.comments || [];
-          updateData.comments = [...comments, comment];
-          console.log('添加新评论:', comment);
-        } catch (error) {
-          console.error('解析评论失败:', error);
+        const comment = JSON.parse(req.body.comment);
+        await recordActivity(
+          id,
+          req.user.id,
+          'comment',
+          null,
+          null,
+          comment.content,
+          comment.content
+        );
+      }
+      
+      // 处理删除的附件
+      if (req.body.existingAttachments) {
+        const existingAttachments = JSON.parse(req.body.existingAttachments);
+        const deletedAttachments = (workItem.attachments || []).filter(
+          attachment => !existingAttachments.some(ea => ea.path === attachment.path)
+        );
+        
+        // 记录删除附件的活动
+        for (const attachment of deletedAttachments) {
+          await recordActivity(
+            id,
+            req.user.id,
+            'attachment_delete',
+            'attachments',
+            attachment.originalname,
+            null,
+            `删除了附件 "${attachment.originalname}"`
+          );
         }
       }
       
@@ -1123,5 +1233,74 @@ router.get('/download/:filename', authenticate, (req, res) => {
     res.status(500).json({ message: '服务器错误: ' + error.message });
   }
 });
+
+// 获取工作项活动历史
+router.get('/:id/activities', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('获取工作项活动历史, ID:', id);
+    
+    const activities = await WorkItemActivity.findAll({
+      where: { workItemId: id },
+      include: [
+        {
+          model: User,
+          as: 'User',
+          attributes: ['id', 'username', 'avatar']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    
+    console.log('找到活动记录数量:', activities.length);
+    console.log('活动记录:', JSON.stringify(activities, null, 2));
+    
+    res.json(activities);
+  } catch (error) {
+    console.error('获取工作项活动历史失败:', error);
+    console.error('错误详情:', {
+      message: error.message,
+      stack: error.stack,
+      originalError: error.original
+    });
+    res.status(500).json({ message: '服务器错误' });
+  }
+});
+
+// 记录活动历史的辅助函数
+async function recordActivity(workItemId, userId, type, field = null, oldValue = null, newValue = null, description) {
+  try {
+    console.log('开始记录活动历史:', {
+      workItemId,
+      userId,
+      type,
+      field,
+      oldValue,
+      newValue,
+      description
+    });
+
+    const activity = await WorkItemActivity.create({
+      workItemId,
+      userId,
+      type,
+      field,
+      oldValue: oldValue ? String(oldValue) : null,
+      newValue: newValue ? String(newValue) : null,
+      description
+    });
+
+    console.log('活动历史记录成功:', activity.id);
+    return activity;
+  } catch (error) {
+    console.error('记录活动历史失败:', error);
+    console.error('错误详情:', {
+      message: error.message,
+      stack: error.stack,
+      originalError: error.original
+    });
+    throw error; // 抛出错误以便调用者知道记录失败
+  }
+}
 
 module.exports = router; 
