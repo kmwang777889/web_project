@@ -599,7 +599,59 @@ router.get('/export', authenticate, async (req, res) => {
   }
 });
 
-// 再定义通用路由
+// 添加一个测试路由，用于检查工作项的附件字段
+router.get('/test-attachments/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('测试工作项附件, ID:', id);
+    
+    // 直接从数据库获取工作项
+    const workItem = await WorkItem.findByPk(id);
+    
+    if (!workItem) {
+      return res.status(404).json({ message: '工作项不存在' });
+    }
+    
+    // 打印原始附件字段
+    console.log('原始附件字段类型:', typeof workItem.attachments);
+    console.log('原始附件字段值:', workItem.attachments);
+    
+    // 尝试解析附件字段
+    let parsedAttachments = [];
+    if (!workItem.attachments) {
+      parsedAttachments = [];
+    } else if (typeof workItem.attachments === 'string') {
+      try {
+        const parsed = JSON.parse(workItem.attachments);
+        if (Array.isArray(parsed)) {
+          parsedAttachments = parsed;
+        } else {
+          console.error('解析后的附件不是数组:', parsed);
+        }
+      } catch (error) {
+        console.error('解析附件字符串失败:', error);
+      }
+    } else if (Array.isArray(workItem.attachments)) {
+      parsedAttachments = workItem.attachments;
+    }
+    
+    // 返回测试结果
+    res.json({
+      id: workItem.id,
+      title: workItem.title,
+      originalAttachments: workItem.attachments,
+      originalAttachmentsType: typeof workItem.attachments,
+      parsedAttachments,
+      parsedAttachmentsType: typeof parsedAttachments,
+      isArray: Array.isArray(parsedAttachments)
+    });
+  } catch (error) {
+    console.error('测试工作项附件错误:', error);
+    res.status(500).json({ message: '服务器错误' });
+  }
+});
+
+// 获取工作项详情
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -628,14 +680,65 @@ router.get('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ message: '工作项不存在' });
     }
     
+    // 创建一个可以修改的工作项副本
+    const workItemData = workItem.toJSON();
+    
     // 确保附件字段是数组
-    if (!workItem.attachments) {
-      workItem.attachments = [];
+    if (!workItemData.attachments) {
+      workItemData.attachments = [];
+      console.log('工作项没有附件，设置为空数组');
+    } else if (typeof workItemData.attachments === 'string') {
+      try {
+        const parsedAttachments = JSON.parse(workItemData.attachments);
+        if (Array.isArray(parsedAttachments)) {
+          workItemData.attachments = parsedAttachments;
+          console.log('成功解析附件字符串为数组，数量:', parsedAttachments.length);
+        } else {
+          console.error('解析后的附件不是数组:', parsedAttachments);
+          workItemData.attachments = [];
+        }
+      } catch (error) {
+        console.error('解析附件字符串失败:', error);
+        workItemData.attachments = [];
+      }
+    } else if (!Array.isArray(workItemData.attachments)) {
+      console.error('附件字段既不是字符串也不是数组:', typeof workItemData.attachments);
+      workItemData.attachments = [];
     }
     
-    console.log('工作项附件数量:', workItem.attachments.length);
+    console.log('工作项附件数量:', workItemData.attachments.length);
     
-    res.json(workItem);
+    // 确保每个附件都有必要的字段
+    if (workItemData.attachments.length > 0) {
+      workItemData.attachments = workItemData.attachments
+        .filter(attachment => attachment && typeof attachment === 'object')
+        .map(attachment => {
+          // 确保必要的字段存在
+          if (!attachment.mimetype) {
+            attachment.mimetype = 'application/octet-stream';
+          }
+          if (!attachment.originalName) {
+            attachment.originalName = attachment.filename || '未命名文件';
+          }
+          if (!attachment.size) {
+            attachment.size = 0;
+          }
+          return attachment;
+        });
+      
+      console.log('处理后的附件数量:', workItemData.attachments.length);
+      if (workItemData.attachments.length > 0) {
+        console.log('附件示例:', JSON.stringify(workItemData.attachments[0]));
+      }
+    }
+    
+    // 在返回之前再次确认附件是数组
+    if (!Array.isArray(workItemData.attachments)) {
+      console.error('警告: 处理后的附件仍然不是数组，强制设置为空数组');
+      workItemData.attachments = [];
+    }
+    
+    res.json(workItemData);
   } catch (error) {
     console.error('获取工作项详情错误:', error);
     res.status(500).json({ message: '服务器错误' });
@@ -662,6 +765,22 @@ router.put(
         console.log('请求体中包含 attachments 字段');
       } else {
         console.warn('警告: 请求体中不包含 attachments 字段');
+      }
+      
+      // 检查请求中的文件
+      if (req.files) {
+        console.log('请求中包含文件数组，长度:', req.files.length);
+      } else if (req.file) {
+        console.log('请求中包含单个文件:', req.file.originalname);
+      } else {
+        console.warn('警告: 请求中没有文件');
+        
+        // 检查请求的原始数据
+        if (req.rawBody) {
+          console.log('请求原始数据长度:', req.rawBody.length);
+        } else {
+          console.warn('警告: 请求中没有原始数据');
+        }
       }
     } else {
       console.warn('警告: 这不是一个文件上传请求');
@@ -729,6 +848,172 @@ router.put(
         return res.status(400).json({ errors: errors.array() });
       }
       
+      // 处理上传的附件
+      let existingAttachments = [];
+      let newAttachments = [];
+      
+      // 处理现有附件
+      if (req.body.existingAttachments) {
+        try {
+          // 解析现有附件
+          try {
+            existingAttachments = JSON.parse(req.body.existingAttachments);
+            if (!Array.isArray(existingAttachments)) {
+              console.warn('解析后的existingAttachments不是数组:', existingAttachments);
+              existingAttachments = [];
+            } else {
+              console.log('从请求中解析的现有附件:', existingAttachments.length);
+              console.log('现有附件示例:', existingAttachments.length > 0 ? JSON.stringify(existingAttachments[0], null, 2) : '无');
+            }
+          } catch (parseError) {
+            console.error('解析existingAttachments失败:', parseError);
+            existingAttachments = [];
+          }
+        } catch (error) {
+          console.error('处理现有附件时出错:', error);
+          existingAttachments = [];
+        }
+      } else if (workItem.attachments) {
+        // 如果没有提供现有附件信息，尝试使用工作项中的附件
+        if (typeof workItem.attachments === 'string') {
+          try {
+            existingAttachments = JSON.parse(workItem.attachments);
+            if (!Array.isArray(existingAttachments)) {
+              console.warn('从工作项解析的attachments不是数组:', existingAttachments);
+              existingAttachments = [];
+            }
+          } catch (parseError) {
+            console.error('解析工作项附件失败:', parseError);
+            existingAttachments = [];
+          }
+        } else if (Array.isArray(workItem.attachments)) {
+          existingAttachments = workItem.attachments;
+        } else {
+          console.warn('工作项附件既不是字符串也不是数组:', typeof workItem.attachments);
+          existingAttachments = [];
+        }
+        console.log('使用工作项中的现有附件:', existingAttachments.length);
+      }
+      
+      // 处理新上传的附件
+      if (req.files && req.files.length > 0) {
+        console.log('收到新上传的附件:', req.files.length);
+        
+        for (const file of req.files) {
+          // 使用req.fileInfo中的信息
+          let attachment;
+          
+          if (req.fileInfo && req.fileInfo[file.filename]) {
+            const fileInfo = req.fileInfo[file.filename];
+            
+            attachment = {
+              filename: file.filename,
+              originalName: fileInfo.originalName,
+              path: fileInfo.relativePath,
+              mimetype: fileInfo.mimetype,
+              size: file.size
+            };
+            
+            console.log('使用fileInfo创建新附件:', attachment);
+          } else {
+            // 如果没有fileInfo，使用传统方式
+            let originalName;
+            try {
+              originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+            } catch (error) {
+              console.error('文件名编码转换失败:', error);
+              originalName = file.originalname;
+            }
+            
+            const isImage = file.mimetype.startsWith('image/');
+            const subDir = isImage ? 'images' : 'files';
+            const relativePath = `/uploads/${subDir}/${file.filename}`;
+            
+            attachment = {
+              filename: file.filename,
+              originalName: originalName,
+              path: relativePath,
+              mimetype: file.mimetype,
+              size: file.size
+            };
+            
+            console.log('使用传统方式创建新附件:', attachment);
+          }
+          
+          // 检查文件是否存在
+          const filePath = path.join(__dirname, '../public', attachment.path);
+          if (!fs.existsSync(filePath)) {
+            console.error('文件不存在:', filePath);
+            return res.status(500).json({ message: '文件上传失败：文件未正确保存' });
+          }
+          
+          // 将附件添加到新附件列表
+          newAttachments.push(attachment);
+          
+          // 记录附件上传活动
+          await recordActivity(
+            id,
+            req.user.id,
+            'attachment_added',
+            null,
+            null,
+            attachment.originalName,
+            `添加了附件: ${attachment.originalName}`
+          );
+        }
+      }
+      
+      // 处理删除的附件
+      if (req.body.existingAttachments && workItem.attachments) {
+        try {
+          // 确保workItem.attachments是数组
+          let currentAttachments = [];
+          if (typeof workItem.attachments === 'string') {
+            try {
+              currentAttachments = JSON.parse(workItem.attachments);
+              if (!Array.isArray(currentAttachments)) {
+                console.warn('解析后的attachments不是数组:', currentAttachments);
+                currentAttachments = [];
+              }
+            } catch (parseError) {
+              console.error('解析工作项附件失败:', parseError);
+              currentAttachments = [];
+            }
+          } else if (Array.isArray(workItem.attachments)) {
+            currentAttachments = workItem.attachments;
+          } else {
+            console.warn('工作项附件既不是字符串也不是数组:', typeof workItem.attachments);
+            currentAttachments = [];
+          }
+          
+          console.log('当前附件数量:', currentAttachments.length);
+          console.log('保留的附件数量:', existingAttachments.length);
+          
+          // 找出被删除的附件
+          const deletedAttachments = currentAttachments.filter(
+            attachment => !existingAttachments.some(ea => ea.path === attachment.path)
+          );
+          
+          console.log('删除的附件数量:', deletedAttachments.length);
+          
+          // 记录删除附件的活动
+          for (const attachment of deletedAttachments) {
+            await recordActivity(
+              id,
+              req.user.id,
+              'attachment_delete',
+              'attachments',
+              attachment.originalName || attachment.originalname,
+              null,
+              `删除了附件 "${attachment.originalName || attachment.originalname}"`
+            );
+          }
+        } catch (error) {
+          console.error('处理删除附件时出错:', error);
+          // 继续执行，不中断更新过程
+        }
+      }
+      
       // 准备更新数据
       const updateData = {};
       
@@ -781,188 +1066,29 @@ router.put(
         }
       }
       
-      // 处理附件
-      let existingAttachments = [];
-      let newAttachments = [];
-      
-      // 检查是否有现有附件信息
-      if (req.body.existingAttachments) {
-        try {
-          existingAttachments = JSON.parse(req.body.existingAttachments);
-          console.log('从请求中解析的现有附件:', existingAttachments.length);
-          console.log('现有附件示例:', existingAttachments.length > 0 ? JSON.stringify(existingAttachments[0], null, 2) : '无');
-        } catch (error) {
-          console.error('解析现有附件信息失败:', error);
-          // 如果解析失败，使用工作项中的附件
-          existingAttachments = workItem.attachments || [];
-          console.log('使用工作项中的现有附件(解析失败):', existingAttachments.length);
-        }
-      } else if (workItem.attachments) {
-        // 如果没有提供现有附件信息，使用工作项中的附件
-        existingAttachments = workItem.attachments;
-        console.log('使用工作项中的现有附件(未提供):', existingAttachments.length);
-      }
-      
-      // 处理新上传的附件
-      if (req.files && req.files.length > 0) {
-        console.log('收到新上传的附件:', req.files.length);
-        
-        for (const file of req.files) {
-          // 使用req.fileInfo中的信息
-          let attachment;
-          
-          if (req.fileInfo && req.fileInfo[file.filename]) {
-            const fileInfo = req.fileInfo[file.filename];
-            
-            attachment = {
-              filename: file.filename,
-              originalName: fileInfo.originalName,
-              path: fileInfo.relativePath,
-              mimetype: fileInfo.mimetype,
-              size: file.size
-            };
-            
-            console.log('使用fileInfo创建新附件:', attachment);
-          } else {
-            // 如果没有fileInfo，使用传统方式
-            let originalName;
-            try {
-              originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-            } catch (error) {
-              console.error('文件名编码转换失败:', error);
-              originalName = file.originalname;
-            }
-            
-            const isImage = file.mimetype.startsWith('image/');
-            const subDir = isImage ? 'images' : 'files';
-            const relativePath = `/uploads/${subDir}/${file.filename}`;
-            
-            attachment = {
-              filename: file.filename,
-              originalName: originalName,
-              path: relativePath,
-              mimetype: file.mimetype,
-              size: file.size
-            };
-            
-            console.log('使用传统方式创建新附件:', attachment);
-          }
-          
-          // 检查文件是否存在
-          const filePath = path.join(__dirname, '../public', attachment.path);
-          
-          if (fs.existsSync(filePath)) {
-            console.log(`文件已保存到: ${filePath}`);
-            
-            // 获取文件信息
-            try {
-              const stats = fs.statSync(filePath);
-              console.log('文件信息:', {
-                size: stats.size,
-                created: stats.birthtime,
-                modified: stats.mtime
-              });
-              
-              // 文件存在，添加到新附件列表
-              newAttachments.push(attachment);
-            } catch (statError) {
-              console.error('获取文件信息失败:', statError);
-            }
-          } else {
-            console.error(`文件未找到: ${filePath}`);
-            
-            // 检查文件是否在其他位置
-            const alternativePaths = [
-              path.join(__dirname, '..', file.path),
-              file.path,
-              path.join(process.cwd(), file.path),
-              path.join(process.cwd(), 'public', attachment.path),
-              path.join(process.cwd(), 'server/public', attachment.path)
-            ];
-            
-            let fileFound = false;
-            console.log('尝试查找文件的其他位置:');
-            
-            for (const altPath of alternativePaths) {
-              console.log(`- 检查: ${altPath}`);
-              if (fs.existsSync(altPath)) {
-                console.log(`  文件找到: ${altPath}`);
-                fileFound = true;
-                
-                // 尝试复制文件到正确位置
-                try {
-                  const targetDir = path.dirname(filePath);
-                  if (!fs.existsSync(targetDir)) {
-                    fs.mkdirSync(targetDir, { recursive: true });
-                    console.log(`  创建目录: ${targetDir}`);
-                  }
-                  
-                  fs.copyFileSync(altPath, filePath);
-                  console.log(`  文件已复制到: ${filePath}`);
-                  
-                  // 文件已复制，添加到新附件列表
-                  newAttachments.push(attachment);
-                  break;
-                } catch (copyError) {
-                  console.error(`  复制文件失败: ${copyError.message}`);
-                }
-              }
-            }
-            
-            if (!fileFound) {
-              console.error('文件在所有可能的位置都未找到');
-              
-              // 尝试直接从请求中获取文件内容并保存
-              try {
-                // 确保目标目录存在
-                const targetDir = path.dirname(filePath);
-                if (!fs.existsSync(targetDir)) {
-                  fs.mkdirSync(targetDir, { recursive: true });
-                  console.log(`创建目录: ${targetDir}`);
-                }
-                
-                // 如果文件对象中有buffer，直接写入文件
-                if (file.buffer) {
-                  fs.writeFileSync(filePath, file.buffer);
-                  console.log(`从buffer直接写入文件: ${filePath}`);
-                  newAttachments.push(attachment);
-                } else {
-                  console.error('文件对象中没有buffer，无法直接写入');
-                  
-                  // 尝试从文件对象中获取路径并复制
-                  if (file.path) {
-                    try {
-                      fs.copyFileSync(file.path, filePath);
-                      console.log(`从文件路径复制文件: ${file.path} -> ${filePath}`);
-                      newAttachments.push(attachment);
-                    } catch (copyError) {
-                      console.error(`从文件路径复制失败: ${copyError.message}`);
-                    }
-                  }
-                }
-              } catch (writeError) {
-                console.error('直接写入文件失败:', writeError);
-              }
-            }
-          }
-          
-          // 记录添加附件的活动
-          await recordActivity(
-            id,
-            req.user.id,
-            'attachment_add',
-            'attachments',
-            null,
-            file.originalname,
-            `添加了附件 "${file.originalname}"`
-          );
-        }
-      }
-      
       // 合并现有附件和新附件
       updateData.attachments = [...existingAttachments, ...newAttachments];
       console.log('更新后的附件总数:', updateData.attachments.length);
+      console.log('现有附件数量:', existingAttachments.length);
       console.log('新增附件数量:', newAttachments.length);
+      
+      // 打印附件详情，用于调试
+      if (updateData.attachments.length > 0) {
+        console.log('附件详情:');
+        updateData.attachments.forEach((attachment, index) => {
+          console.log(`附件 ${index + 1}:`, {
+            filename: attachment.filename,
+            originalName: attachment.originalName,
+            path: attachment.path,
+            mimetype: attachment.mimetype,
+            size: attachment.size
+          });
+          
+          // 检查文件是否存在
+          const filePath = path.join(__dirname, '../public', attachment.path);
+          console.log(`文件是否存在: ${fs.existsSync(filePath)}`);
+        });
+      }
       
       // 处理评论
       if (req.body.comment) {
@@ -978,28 +1104,52 @@ router.put(
         );
       }
       
-      // 处理删除的附件
-      if (req.body.existingAttachments) {
-        const existingAttachments = JSON.parse(req.body.existingAttachments);
-        const deletedAttachments = (workItem.attachments || []).filter(
-          attachment => !existingAttachments.some(ea => ea.path === attachment.path)
-        );
-        
-        // 记录删除附件的活动
-        for (const attachment of deletedAttachments) {
-          await recordActivity(
-            id,
-            req.user.id,
-            'attachment_delete',
-            'attachments',
-            attachment.originalname,
-            null,
-            `删除了附件 "${attachment.originalname}"`
-          );
-        }
-      }
+      console.log('最终更新数据:', JSON.stringify(updateData, null, 2));
       
-      console.log('更新数据:', JSON.stringify(updateData, null, 2));
+      // 确保附件字段是JSON格式
+      if (updateData.attachments) {
+        // 检查是否需要将attachments转换为JSON字符串
+        if (typeof updateData.attachments !== 'string') {
+          try {
+            // 先尝试将其转换为JSON字符串
+            const attachmentsJson = JSON.stringify(updateData.attachments);
+            console.log('附件已转换为JSON字符串，长度:', attachmentsJson.length);
+            
+            // 检查是否是有效的JSON
+            const parsed = JSON.parse(attachmentsJson);
+            if (Array.isArray(parsed)) {
+              console.log('附件是有效的JSON数组，包含', parsed.length, '个项目');
+            } else {
+              console.warn('警告: 附件不是数组');
+            }
+            
+            // 更新字段
+            updateData.attachments = attachmentsJson;
+          } catch (error) {
+            console.error('转换附件为JSON字符串失败:', error);
+            // 如果转换失败，使用空数组
+            updateData.attachments = '[]';
+          }
+        } else {
+          console.log('附件已经是字符串格式');
+          
+          // 验证字符串是否是有效的JSON数组
+          try {
+            const parsed = JSON.parse(updateData.attachments);
+            if (!Array.isArray(parsed)) {
+              console.warn('警告: 附件字符串解析后不是数组，重置为空数组');
+              updateData.attachments = '[]';
+            }
+          } catch (error) {
+            console.error('解析附件字符串失败，重置为空数组:', error);
+            updateData.attachments = '[]';
+          }
+        }
+      } else {
+        // 如果没有附件字段，设置为空数组
+        updateData.attachments = '[]';
+        console.log('没有附件字段，设置为空数组');
+      }
       
       // 更新工作项
       await workItem.update(updateData);
@@ -1167,9 +1317,10 @@ router.get('/download/:filename', authenticate, (req, res) => {
     
     // 尝试多个可能的路径
     const possiblePaths = [
-      path.join(uploadsDir, filename),
-      path.join(__dirname, '../public/exports', filename),
-      path.join(__dirname, '../uploads', filename)
+      path.join(__dirname, '../public/uploads/files', filename),
+      path.join(__dirname, '../public/uploads/images', filename),
+      path.join(__dirname, '../public/uploads', filename),
+      path.join(__dirname, '../public/exports', filename)
     ];
     
     let filepath = null;
@@ -1187,8 +1338,24 @@ router.get('/download/:filename', authenticate, (req, res) => {
       
       // 列出目录中的文件，帮助调试
       try {
-        const files = fs.readdirSync(uploadsDir);
-        console.log('目录中的文件:', files);
+        console.log('检查目录内容:');
+        const uploadsDir = path.join(__dirname, '../public/uploads');
+        const filesDir = path.join(uploadsDir, 'files');
+        const imagesDir = path.join(uploadsDir, 'images');
+        const exportsDir = path.join(__dirname, '../public/exports');
+        
+        if (fs.existsSync(uploadsDir)) {
+          console.log('uploads目录内容:', fs.readdirSync(uploadsDir));
+        }
+        if (fs.existsSync(filesDir)) {
+          console.log('files目录内容:', fs.readdirSync(filesDir));
+        }
+        if (fs.existsSync(imagesDir)) {
+          console.log('images目录内容:', fs.readdirSync(imagesDir));
+        }
+        if (fs.existsSync(exportsDir)) {
+          console.log('exports目录内容:', fs.readdirSync(exportsDir));
+        }
       } catch (readError) {
         console.error('读取目录失败:', readError);
       }
@@ -1197,40 +1364,40 @@ router.get('/download/:filename', authenticate, (req, res) => {
     }
     
     // 获取文件信息
-    try {
-      const stats = fs.statSync(filepath);
-      console.log('文件信息:', {
-        size: stats.size,
-        created: stats.birthtime,
-        modified: stats.mtime
-      });
-    } catch (statError) {
-      console.error('获取文件信息失败:', statError);
-    }
+    const stat = fs.statSync(filepath);
+    const fileSize = stat.size;
+    const mimetype = path.extname(filepath).toLowerCase() === '.xlsx' 
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'application/octet-stream';
     
-    // 设置正确的Content-Type
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // 设置响应头
+    res.setHeader('Content-Length', fileSize);
+    res.setHeader('Content-Type', mimetype);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
     
-    // 使用流式传输文件
+    // 创建文件读取流并发送
     const fileStream = fs.createReadStream(filepath);
     fileStream.pipe(res);
     
+    console.log('文件下载开始:', filepath);
+    
     // 处理错误
-    fileStream.on('error', (err) => {
-      console.error('文件流错误:', err);
+    fileStream.on('error', (error) => {
+      console.error('文件流错误:', error);
       if (!res.headersSent) {
         res.status(500).json({ message: '文件读取错误' });
+      } else {
+        res.end();
       }
     });
     
     // 处理完成
     fileStream.on('end', () => {
-      console.log('文件传输完成');
+      console.log('文件下载完成:', filepath);
     });
   } catch (error) {
     console.error('下载文件错误:', error);
-    res.status(500).json({ message: '服务器错误: ' + error.message });
+    res.status(500).json({ message: '服务器错误' });
   }
 });
 
@@ -1302,5 +1469,125 @@ async function recordActivity(workItemId, userId, type, field = null, oldValue =
     throw error; // 抛出错误以便调用者知道记录失败
   }
 }
+
+// 添加一个简单的测试上传路由
+router.post('/test-upload-simple', upload.single('file'), (req, res) => {
+  try {
+    console.log('收到文件上传请求');
+    console.log('请求头:', req.headers);
+    console.log('请求体字段:', Object.keys(req.body));
+    
+    if (!req.file) {
+      console.log('没有上传文件');
+      return res.status(400).json({ success: false, message: '没有上传文件' });
+    }
+    
+    console.log('上传的文件:', req.file);
+    
+    // 获取文件信息
+    let attachment;
+    
+    if (req.fileInfo && req.fileInfo[req.file.filename]) {
+      const fileInfo = req.fileInfo[req.file.filename];
+      
+      attachment = {
+        filename: req.file.filename,
+        originalName: fileInfo.originalName,
+        path: fileInfo.relativePath,
+        mimetype: fileInfo.mimetype,
+        size: req.file.size
+      };
+      
+      console.log('使用fileInfo创建附件:', attachment);
+    } else {
+      // 如果没有fileInfo，使用传统方式
+      let originalName;
+      try {
+        originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      } catch (error) {
+        console.error('文件名编码转换失败:', error);
+        originalName = req.file.originalname;
+      }
+      
+      const isImage = req.file.mimetype.startsWith('image/');
+      const subDir = isImage ? 'images' : 'files';
+      const relativePath = `/uploads/${subDir}/${req.file.filename}`;
+      
+      attachment = {
+        filename: req.file.filename,
+        originalName: originalName,
+        path: relativePath,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      };
+      
+      console.log('使用传统方式创建附件:', attachment);
+    }
+    
+    // 检查文件是否存在
+    const filePath = path.join(__dirname, '../public', attachment.path);
+    let fileExists = fs.existsSync(filePath);
+    
+    if (!fileExists) {
+      console.error('文件不存在:', filePath);
+      
+      // 尝试查找文件的其他可能位置
+      const alternativePaths = [
+        path.join(__dirname, '..', req.file.path),
+        req.file.path,
+        path.join(process.cwd(), req.file.path),
+        path.join(process.cwd(), 'public', attachment.path),
+        path.join(process.cwd(), 'server/public', attachment.path)
+      ];
+      
+      console.log('尝试查找文件的其他位置:');
+      
+      for (const altPath of alternativePaths) {
+        console.log(`- 检查: ${altPath}`);
+        if (fs.existsSync(altPath)) {
+          console.log(`  文件找到: ${altPath}`);
+          fileExists = true;
+          
+          // 更新附件路径为找到的路径
+          const relativePath = altPath.replace(process.cwd(), '').replace(/\\/g, '/');
+          attachment.path = relativePath;
+          console.log('更新附件路径为:', attachment.path);
+          break;
+        }
+      }
+      
+      if (!fileExists) {
+        return res.status(500).json({ success: false, message: '文件上传失败：文件未正确保存' });
+      }
+    } else {
+      console.log('文件已保存到:', filePath);
+    }
+    
+    // 如果请求中包含工作项ID，则将附件添加到工作项
+    if (req.body.workItemId) {
+      const workItemId = req.body.workItemId;
+      console.log('将附件添加到工作项:', workItemId);
+      
+      // 这里可以添加将附件添加到工作项的逻辑
+      // 但我们现在使用客户端的方式，通过单独的请求更新工作项
+    }
+    
+    // 返回成功响应
+    res.json({
+      success: true,
+      message: '文件上传成功',
+      file: {
+        originalname: attachment.originalName,
+        filename: attachment.filename,
+        path: attachment.path,
+        size: attachment.size,
+        mimetype: attachment.mimetype
+      }
+    });
+  } catch (error) {
+    console.error('文件上传错误:', error);
+    res.status(500).json({ success: false, message: '上传失败: ' + error.message });
+  }
+});
 
 module.exports = router; 

@@ -201,6 +201,7 @@ export default {
     // 检查是否已经是 FormData 实例
     if (data instanceof FormData) {
       requestData = data;
+      console.log('使用FormData发送请求');
     } else {
       // 如果是普通对象，转换为 FormData
       requestData = new FormData();
@@ -209,17 +210,18 @@ export default {
           requestData.append(key, value);
         }
       });
+      console.log('将普通对象转换为FormData');
     }
     
     try {
       const headers = {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
+        // 不要手动设置Content-Type，让浏览器自动设置multipart/form-data和boundary
       };
       
       console.log('发送请求头:', headers);
       
-      const response = await axios.put(`/work-items/${id}`, requestData, {
-        baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+      const response = await axios.put(`${baseURL}/work-items/${id}`, requestData, {
         headers,
         maxContentLength: Infinity,
         maxBodyLength: Infinity
@@ -228,8 +230,7 @@ export default {
       console.log('更新工作项响应:', response.data);
       return response.data;
     } catch (error) {
-      console.error('API 更新工作项错误:', error);
-      console.error('错误响应:', error.response ? error.response.data : '无响应数据');
+      console.error('更新工作项失败:', error);
       throw error;
     }
   },
@@ -238,6 +239,49 @@ export default {
   deleteWorkItemAttachment: (id, attachmentId) => apiRequest('delete', `/work-items/${id}/attachments/${attachmentId}`),
   exportWorkItems: (params) => apiRequest('get', '/work-items/export', null, { params }),
   getWorkItemActivities: (id) => apiRequest('get', `/work-items/${id}/activities`),
+  
+  // 测试文件上传
+  testUploadFile: async (file) => {
+    try {
+      console.log('开始上传文件:', file.name);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // 添加随机参数，避免缓存
+      const timestamp = new Date().getTime();
+      
+      const response = await axios.post(`${baseURL}/work-items/test-upload-simple?t=${timestamp}`, formData, {
+        headers: {
+          // 不要手动设置Content-Type，让浏览器自动设置multipart/form-data和boundary
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      });
+      
+      console.log('文件上传响应:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('文件上传失败:', error);
+      
+      // 提供更详细的错误信息
+      let errorMessage = '文件上传失败';
+      
+      if (error.response) {
+        // 服务器响应了错误状态码
+        errorMessage += ': ' + (error.response.data?.message || error.response.statusText || '服务器错误');
+      } else if (error.request) {
+        // 请求已发送但没有收到响应
+        errorMessage += ': 无法连接到服务器，请检查网络连接';
+      } else {
+        // 请求设置时发生错误
+        errorMessage += ': ' + (error.message || '未知错误');
+      }
+      
+      throw new Error(errorMessage);
+    }
+  },
   
   // 下载文件辅助函数
   downloadFile: (url, filename) => {
@@ -249,30 +293,50 @@ export default {
         url = '/' + url;
       }
       
-      const fullUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${url}`;
+      // 构建完整URL
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const fullUrl = `${apiUrl}${url}`;
       console.log('完整下载URL:', fullUrl);
       
-      // 创建一个隐藏的a标签用于下载
-      const link = document.createElement('a');
-      link.href = fullUrl;
-      link.setAttribute('download', filename || '下载文件');
-      link.setAttribute('target', '_blank'); // 添加target属性，在新窗口打开
-      
-      // 添加到DOM并触发点击
-      document.body.appendChild(link);
-      console.log('触发下载链接点击');
-      link.click();
-      
-      // 清理DOM
-      setTimeout(() => {
-        document.body.removeChild(link);
-        console.log('下载链接已从DOM中移除');
-      }, 100);
-      
-      return true;
+      // 使用fetch API下载文件
+      fetch(fullUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          // 创建Blob URL
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          // 创建一个隐藏的a标签用于下载
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.setAttribute('download', filename || '下载文件');
+          
+          // 添加到DOM并触发点击
+          document.body.appendChild(link);
+          console.log('触发下载链接点击');
+          link.click();
+          
+          // 清理DOM和Blob URL
+          setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+            console.log('下载链接已从DOM中移除，Blob URL已释放');
+          }, 100);
+        })
+        .catch(error => {
+          console.error('下载文件失败:', error);
+          // 显示错误消息
+          const { message } = require('antd');
+          message.error(`下载失败: ${error.message}`);
+        });
     } catch (error) {
-      console.error('下载文件失败:', error);
-      throw new Error('下载文件失败: ' + error.message);
+      console.error('下载文件函数错误:', error);
+      const { message } = require('antd');
+      message.error(`下载过程出错: ${error.message}`);
     }
   },
   

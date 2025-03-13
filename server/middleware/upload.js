@@ -175,12 +175,12 @@ const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     console.error('Multer 错误:', err);
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: '文件大小不能超过20MB' });
+      return res.status(400).json({ success: false, message: '文件大小不能超过20MB' });
     }
-    return res.status(400).json({ message: '文件上传失败: ' + err.message });
+    return res.status(400).json({ success: false, message: '文件上传失败: ' + err.message });
   } else if (err) {
     console.error('文件上传错误:', err);
-    return res.status(500).json({ message: '服务器错误: ' + err.message });
+    return res.status(500).json({ success: false, message: '服务器错误: ' + err.message });
   }
   next();
 };
@@ -191,6 +191,23 @@ const logUploadRequest = (req, res, next) => {
   console.log('- 请求方法:', req.method);
   console.log('- 请求路径:', req.path);
   console.log('- Content-Type:', req.headers['content-type']);
+  
+  // 保存原始请求体，用于调试
+  let rawBody = '';
+  req.on('data', chunk => {
+    rawBody += chunk.toString();
+    if (rawBody.length > 1000) {
+      rawBody = rawBody.substring(0, 1000) + '... [截断]';
+    }
+  });
+  
+  req.on('end', () => {
+    req.rawBody = rawBody;
+    console.log('- 原始请求体长度:', rawBody.length);
+    if (rawBody.length < 1000) {
+      console.log('- 原始请求体:', rawBody);
+    }
+  });
   
   if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
     console.log('- 这是一个文件上传请求');

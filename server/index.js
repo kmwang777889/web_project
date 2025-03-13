@@ -25,12 +25,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 静态文件目录
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 app.use('/exports', express.static(path.join(__dirname, 'public/exports')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // 添加路径调试信息
-console.log('静态文件目录 - uploads:', path.join(__dirname, 'uploads'));
+console.log('静态文件目录 - uploads:', path.join(__dirname, 'public/uploads'));
 console.log('静态文件目录 - exports:', path.join(__dirname, 'public/exports'));
+console.log('静态文件目录 - public:', path.join(__dirname, 'public'));
 
 // 路由
 app.use('/api/auth', authRoutes);
