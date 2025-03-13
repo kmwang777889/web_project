@@ -240,8 +240,8 @@ export default {
   exportWorkItems: (params) => apiRequest('get', '/work-items/export', null, { params }),
   getWorkItemActivities: (id) => apiRequest('get', `/work-items/${id}/activities`),
   
-  // 测试文件上传
-  testUploadFile: async (file) => {
+  // 上传附件文件
+  uploadAttachmentFile: async (file) => {
     try {
       console.log('开始上传文件:', file.name);
       

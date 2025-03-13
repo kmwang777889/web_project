@@ -23,7 +23,8 @@ import {
   EyeOutlined,
   DownloadOutlined,
   UploadOutlined,
-  FilterOutlined
+  FilterOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -110,11 +111,6 @@ const WorkItemList = () => {
   const [form] = Form.useForm();
   const { currentUser, isAdmin } = useAuth();
   const navigate = useNavigate();
-  
-  // 图片预览状态
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewImage, setPreviewImage] = useState('');
-  const [previewTitle, setPreviewTitle] = useState('');
   
   // 筛选条件
   const [filters, setFilters] = useState({
@@ -239,33 +235,12 @@ const WorkItemList = () => {
     form.resetFields();
     
     if (workItem) {
-      // 准备附件数据，转换为Upload组件需要的格式
-      const fileList = workItem.attachments ? workItem.attachments.map((attachment, index) => {
-        const isImage = attachment.mimetype.startsWith('image/');
-        const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${attachment.path}`;
-        
-        return {
-          uid: `-${index}`, // 负数表示已经存在的文件
-          name: attachment.originalName,
-          status: 'done',
-          url: fileUrl, // 文件访问地址
-          thumbUrl: isImage ? fileUrl : undefined, // 如果是图片，提供缩略图
-          type: attachment.mimetype,
-          size: attachment.size,
-          // 保存原始附件信息，用于后续处理
-          originalAttachment: attachment
-        };
-      }) : [];
-      
       form.setFieldsValue({
         ...workItem,
         expectedCompletionDate: workItem.expectedCompletionDate ? dayjs(workItem.expectedCompletionDate) : null,
         scheduledStartDate: workItem.scheduledStartDate ? dayjs(workItem.scheduledStartDate) : null,
         scheduledEndDate: workItem.scheduledEndDate ? dayjs(workItem.scheduledEndDate) : null,
-        attachments: fileList // 设置附件列表
       });
-      
-      console.log('编辑模式下的附件列表:', fileList);
     }
     
     setModalVisible(true);
@@ -296,42 +271,13 @@ const WorkItemList = () => {
         values.scheduledEndDate = values.scheduledEndDate.format('YYYY-MM-DD');
       }
       
-      // 处理文件上传
-      const formData = new FormData();
-      
-      // 添加基本字段
-      Object.keys(values).forEach(key => {
-        if (key !== 'attachments' && values[key] !== undefined && values[key] !== null) {
-          formData.append(key, values[key]);
-        }
-      });
-      
-      // 添加附件
-      if (values.attachments && values.attachments.length > 0) {
-        console.log('处理附件上传:', values.attachments);
-        
-        // 遍历附件列表
-        values.attachments.forEach(file => {
-          // 只上传新添加的文件（有originFileObj属性的文件）
-          if (file.originFileObj) {
-            console.log('上传新文件:', file.name);
-            formData.append('attachments', file.originFileObj);
-          }
-        });
-      }
-      
-      // 打印formData内容，便于调试
-      for (let pair of formData.entries()) {
-        console.log(pair[0], pair[1]);
-      }
-      
       if (editingWorkItem) {
         // 更新工作项
-        await api.updateWorkItem(editingWorkItem.id, formData);
+        await api.updateWorkItem(editingWorkItem.id, values);
         message.success('工作项更新成功');
       } else {
         // 创建工作项
-        await api.createWorkItem(formData);
+        await api.createWorkItem(values);
         message.success('工作项创建成功');
       }
       
@@ -406,28 +352,125 @@ const WorkItemList = () => {
     }
   };
   
-  // 处理图片预览
-  const handlePreview = (file) => {
-    // 如果是图片，则预览
-    if (file.type && file.type.startsWith('image/')) {
-      // 如果有url（已上传的文件）或thumbUrl（本地预览）
-      const previewUrl = file.url || file.thumbUrl;
-      if (previewUrl) {
-        setPreviewImage(previewUrl);
-        setPreviewTitle(file.name);
-        setPreviewVisible(true);
-      }
-    } else {
-      // 如果不是图片，则下载
-      if (file.url) {
-        window.open(file.url);
-      }
+  // 处理附件上传
+  const handleUploadAttachment = async (workItemId) => {
+    try {
+      // 创建一个文件选择器
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt';
+      
+      // 当用户选择文件后触发上传
+      fileInput.onchange = async (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          
+          // 显示正在上传的消息
+          const loadingMessage = message.loading('正在上传文件...', 0);
+          
+          try {
+            console.log('开始上传文件:', file.name, '类型:', file.type, '大小:', file.size);
+            
+            // 使用附件上传API
+            const result = await api.uploadAttachmentFile(file);
+            console.log('上传结果:', result);
+            
+            if (result && result.success) {
+              // 上传成功后，将文件添加到工作项的附件中
+              const attachment = {
+                filename: result.file.filename,
+                originalName: result.file.originalname,
+                path: result.file.path, // 使用服务器返回的路径
+                mimetype: result.file.mimetype,
+                size: result.file.size
+              };
+              
+              console.log('服务器返回的附件信息:', attachment);
+              
+              // 创建FormData对象用于更新工作项
+              const updateFormData = new FormData();
+              
+              // 获取当前工作项
+              const workItem = workItems.find(item => item.id === workItemId);
+              
+              // 确保工作项存在
+              if (!workItem) {
+                console.error('工作项不存在，无法更新附件');
+                loadingMessage();
+                message.error('更新失败: 工作项不存在');
+                return;
+              }
+              
+              // 获取当前附件列表
+              let currentAttachments = [];
+              
+              // 安全地获取当前附件
+              if (workItem.attachments) {
+                if (typeof workItem.attachments === 'string') {
+                  try {
+                    const parsed = JSON.parse(workItem.attachments);
+                    if (Array.isArray(parsed)) {
+                      currentAttachments = parsed;
+                    } else {
+                      console.warn('解析后的attachments不是数组:', parsed);
+                      currentAttachments = [];
+                    }
+                  } catch (error) {
+                    console.error('解析附件字符串失败:', error);
+                    currentAttachments = [];
+                  }
+                } else if (Array.isArray(workItem.attachments)) {
+                  currentAttachments = [...workItem.attachments];
+                } else {
+                  console.warn('工作项附件既不是字符串也不是数组:', typeof workItem.attachments);
+                  currentAttachments = [];
+                }
+              }
+              
+              console.log('当前附件数量:', currentAttachments.length);
+              
+              // 添加新附件
+              const updatedAttachments = [...currentAttachments, attachment];
+              console.log('更新后的附件数量:', updatedAttachments.length);
+              
+              // 将更新后的附件列表添加到FormData
+              updateFormData.append('existingAttachments', JSON.stringify(updatedAttachments));
+              
+              // 发送更新请求
+              console.log('更新工作项附件...');
+              await api.updateWorkItem(workItemId, updateFormData);
+              
+              // 关闭加载消息
+              loadingMessage();
+              
+              // 显示成功消息
+              message.success(`文件 ${file.name} 上传成功并添加到工作项`);
+              
+              // 重新获取工作项数据
+              fetchWorkItems();
+            } else {
+              // 关闭加载消息
+              loadingMessage();
+              
+              // 显示错误消息
+              message.error('上传失败: ' + (result?.message || '未知错误'));
+            }
+          } catch (error) {
+            // 关闭加载消息
+            loadingMessage();
+            
+            console.error('上传失败:', error);
+            message.error('上传失败: ' + (error.message || '未知错误'));
+          }
+        }
+      };
+      
+      // 触发文件选择器
+      fileInput.click();
+    } catch (error) {
+      console.error('创建文件选择器失败:', error);
+      message.error('上传失败: ' + (error.message || '未知错误'));
     }
-  };
-  
-  // 关闭图片预览
-  const handlePreviewCancel = () => {
-    setPreviewVisible(false);
   };
   
   // 表格列定义
@@ -611,6 +654,11 @@ const WorkItemList = () => {
                   size="small"
                   onClick={() => showModal(record)}
                 />
+                <Button 
+                  icon={<UploadOutlined />} 
+                  size="small"
+                  onClick={() => handleUploadAttachment(record.id)}
+                />
                 <Popconfirm
                   title="确定要删除此工作项吗？"
                   onConfirm={() => handleDelete(record.id)}
@@ -630,15 +678,6 @@ const WorkItemList = () => {
       }
     }
   ];
-  
-  // 上传文件前的验证
-  const beforeUpload = (file) => {
-    const isValidSize = file.size / 1024 / 1024 < 20; // 20MB
-    if (!isValidSize) {
-      message.error('文件大小不能超过20MB!');
-    }
-    return false; // 阻止自动上传
-  };
   
   return (
     <div>
@@ -801,106 +840,134 @@ const WorkItemList = () => {
             <Input placeholder="请输入标题" />
           </Form.Item>
           
-          <Form.Item
-            name="projectId"
-            label="所属项目"
-          >
-            <Select allowClear placeholder="请选择项目">
-              {projects.map(project => (
-                <Option key={project.id} value={project.id}>{project.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="type"
-            label="类型"
-            rules={[{ required: true, message: '请选择类型' }]}
-            initialValue="事务"
-          >
-            <Select>
-              <Option value="规划">规划</Option>
-              <Option value="需求">需求</Option>
-              <Option value="事务">事务</Option>
-              <Option value="缺陷">缺陷</Option>
-            </Select>
-          </Form.Item>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <Form.Item
+              name="projectId"
+              label="所属项目"
+              style={{ flex: 1 }}
+            >
+              <Select allowClear placeholder="请选择项目">
+                {projects.map(project => (
+                  <Option key={project.id} value={project.id}>{project.name}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            
+            <Form.Item
+              name="type"
+              label="类型"
+              rules={[{ required: true, message: '请选择类型' }]}
+              style={{ flex: 1 }}
+              initialValue="事务"
+            >
+              <Select>
+                <Option value="规划">规划</Option>
+                <Option value="需求">需求</Option>
+                <Option value="事务">事务</Option>
+                <Option value="缺陷">缺陷</Option>
+              </Select>
+            </Form.Item>
+          </div>
           
           <Form.Item
             name="description"
             label="描述"
+            style={{ marginBottom: '20px' }}
           >
-            <Input.TextArea rows={4} placeholder="请输入描述" />
+            <Input.TextArea 
+              rows={6} 
+              placeholder="请输入描述" 
+              style={{ 
+                fontSize: '14px',
+                resize: 'vertical',
+                minHeight: '120px'
+              }}
+            />
           </Form.Item>
           
-          <Form.Item
-            name="status"
-            label="状态"
-            initialValue="待处理"
-          >
-            <Select>
-              <Option value="待处理">待处理</Option>
-              <Option value="进行中">进行中</Option>
-              <Option value="已完成">已完成</Option>
-              <Option value="关闭">关闭</Option>
-            </Select>
-          </Form.Item>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <Form.Item
+              name="status"
+              label="状态"
+              style={{ flex: 1 }}
+              initialValue="待处理"
+            >
+              <Select>
+                <Option value="待处理">待处理</Option>
+                <Option value="进行中">进行中</Option>
+                <Option value="已完成">已完成</Option>
+                <Option value="关闭">关闭</Option>
+              </Select>
+            </Form.Item>
+            
+            <Form.Item
+              name="priority"
+              label="紧急程度"
+              style={{ flex: 1 }}
+              initialValue="中"
+            >
+              <Select>
+                <Option value="紧急">紧急</Option>
+                <Option value="高">高</Option>
+                <Option value="中">中</Option>
+                <Option value="低">低</Option>
+              </Select>
+            </Form.Item>
+          </div>
           
-          <Form.Item
-            name="priority"
-            label="紧急程度"
-            initialValue="中"
-          >
-            <Select>
-              <Option value="紧急">紧急</Option>
-              <Option value="高">高</Option>
-              <Option value="中">中</Option>
-              <Option value="低">低</Option>
-            </Select>
-          </Form.Item>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <Form.Item
+              name="source"
+              label="需求来源"
+              style={{ flex: 1 }}
+            >
+              <Select allowClear>
+                <Option value="内部需求">内部需求</Option>
+                <Option value="品牌需求">品牌需求</Option>
+              </Select>
+            </Form.Item>
+            
+            <Form.Item
+              name="assigneeId"
+              label="负责人"
+              style={{ flex: 1 }}
+            >
+              <Select allowClear placeholder="请选择负责人">
+                {admins.map(admin => (
+                  <Option key={admin.id} value={admin.id}>
+                    {admin.username} ({admin.role === 'super_admin' ? '超级管理员' : '管理员'})
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
           
-          <Form.Item
-            name="source"
-            label="需求来源"
-          >
-            <Select allowClear>
-              <Option value="内部需求">内部需求</Option>
-              <Option value="品牌需求">品牌需求</Option>
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="assigneeId"
-            label="负责人"
-          >
-            <Select allowClear placeholder="请选择负责人">
-              {admins.map(admin => (
-                <Option key={admin.id} value={admin.id}>
-                  {admin.username} ({admin.role === 'super_admin' ? '超级管理员' : '管理员'})
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-          
-          <Form.Item
-            name="expectedCompletionDate"
-            label="期望完成日期"
-          >
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-          
-          {isAdmin() && (
-            <>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <Form.Item
+              name="expectedCompletionDate"
+              label="期望完成日期"
+              style={{ flex: 1 }}
+            >
+              <DatePicker style={{ width: '100%' }} />
+            </Form.Item>
+            
+            {isAdmin() && (
               <Form.Item
                 name="estimatedHours"
                 label="预估工时(小时)"
+                style={{ flex: 1 }}
               >
                 <Input type="number" min={0} step={0.5} />
               </Form.Item>
-              
+            )}
+          </div>
+          
+          {isAdmin() && (
+            <div style={{ display: 'flex', gap: '16px' }}>
               <Form.Item
                 name="scheduledStartDate"
                 label="排期开始日期"
+                style={{ flex: 1 }}
               >
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
@@ -908,78 +975,13 @@ const WorkItemList = () => {
               <Form.Item
                 name="scheduledEndDate"
                 label="排期结束日期"
+                style={{ flex: 1 }}
               >
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
-            </>
-          )}
-          
-          <Form.Item
-            name="attachments"
-            label="附件"
-            valuePropName="fileList"
-            getValueFromEvent={(e) => {
-              console.log('Upload event:', e);
-              if (Array.isArray(e)) {
-                return e;
-              }
-              return e && e.fileList ? e.fileList : [];
-            }}
-          >
-            <Upload
-              beforeUpload={(file) => {
-                const isValidSize = file.size / 1024 / 1024 < 20; // 20MB
-                if (!isValidSize) {
-                  message.error('文件大小不能超过20MB!');
-                  return Upload.LIST_IGNORE;
-                }
-                // 返回false阻止自动上传，但允许文件添加到列表中
-                return false;
-              }}
-              multiple
-              listType="picture-card"
-              onChange={(info) => {
-                console.log('Upload onChange:', info);
-                // 可以在这里处理上传状态变化
-                const { status } = info.file;
-                if (status === 'removed') {
-                  // 文件被移除时的处理
-                  console.log('文件已移除:', info.file.name);
-                }
-              }}
-              onPreview={handlePreview}
-            >
-              <div>
-                <PlusOutlined />
-                <div style={{ marginTop: 8 }}>上传文件</div>
-              </div>
-            </Upload>
-            <div style={{ marginTop: 8, color: '#888' }}>
-              支持图片和文档，单个文件不超过20MB
             </div>
-          </Form.Item>
+          )}
         </Form>
-      </Modal>
-      
-      {/* 图片预览模态框 */}
-      <Modal
-        open={previewVisible}
-        title={previewTitle}
-        footer={null}
-        onCancel={handlePreviewCancel}
-        width={800}
-        style={{ top: 20 }}
-        bodyStyle={{ padding: '24px', textAlign: 'center' }}
-      >
-        <img 
-          alt={previewTitle} 
-          style={{ 
-            maxWidth: '100%', 
-            maxHeight: 'calc(100vh - 200px)',
-            objectFit: 'contain'
-          }} 
-          src={previewImage} 
-        />
       </Modal>
     </div>
   );

@@ -626,8 +626,8 @@ const WorkItemDetail = () => {
     }
   };
   
-  // 测试文件上传
-  const handleTestUpload = async () => {
+  // 处理文件上传
+  const handleUploadAttachment = async () => {
     try {
       // 确保当前标签页是附件标签页
       setActiveTabKey('attachments');
@@ -648,8 +648,8 @@ const WorkItemDetail = () => {
           try {
             console.log('开始上传文件:', file.name, '类型:', file.type, '大小:', file.size);
             
-            // 使用测试上传API
-            const result = await api.testUploadFile(file);
+            // 使用附件上传API
+            const result = await api.uploadAttachmentFile(file);
             console.log('上传结果:', result);
             
             if (result && result.success) {
@@ -810,7 +810,7 @@ const WorkItemDetail = () => {
           )}
           <Button 
             icon={<UploadOutlined />} 
-            onClick={handleTestUpload}
+            onClick={handleUploadAttachment}
           >
             上传附件
           </Button>
