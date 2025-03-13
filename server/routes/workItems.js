@@ -1040,6 +1040,24 @@ router.put(
               req.body[field],
               `将状态从 "${workItem[field]}" 修改为 "${req.body[field]}"`
             );
+            
+            // 如果状态变为已完成，自动设置完成日期
+            if (req.body[field] === '已完成' && workItem[field] !== '已完成') {
+              const today = new Date().toISOString().split('T')[0];
+              updateData.completionDate = today;
+              console.log('状态变为已完成，自动设置完成日期:', today);
+              
+              // 记录完成日期变更活动
+              await recordActivity(
+                id,
+                req.user.id,
+                'update',
+                'completionDate',
+                workItem.completionDate,
+                today,
+                `自动设置完成日期为 ${today}`
+              );
+            }
           } else if (field === 'assigneeId') {
             const oldAssignee = workItem.assigneeId ? await User.findByPk(workItem.assigneeId) : null;
             const newAssignee = req.body[field] ? await User.findByPk(req.body[field]) : null;
@@ -1064,6 +1082,12 @@ router.put(
             );
           }
         }
+      }
+      
+      // 如果客户端已经设置了completionDate，则使用客户端设置的值
+      if (req.body.completionDate !== undefined) {
+        updateData.completionDate = req.body.completionDate;
+        console.log('使用客户端设置的完成日期:', req.body.completionDate);
       }
       
       // 合并现有附件和新附件

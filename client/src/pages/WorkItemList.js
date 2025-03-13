@@ -271,6 +271,13 @@ const WorkItemList = () => {
         values.scheduledEndDate = values.scheduledEndDate.format('YYYY-MM-DD');
       }
       
+      // 如果状态变为已完成，自动设置完成日期
+      if (values.status === '已完成' && editingWorkItem && editingWorkItem.status !== '已完成') {
+        // 设置完成日期为当前日期
+        values.completionDate = new Date().toISOString().split('T')[0];
+        console.log('状态变更为已完成，自动设置完成日期:', values.completionDate);
+      }
+      
       if (editingWorkItem) {
         // 更新工作项
         await api.updateWorkItem(editingWorkItem.id, values);
