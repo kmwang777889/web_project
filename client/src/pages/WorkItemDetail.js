@@ -155,6 +155,9 @@ const WorkItemDetail = () => {
   const [activities, setActivities] = useState([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
   
+  // 添加当前活动标签页状态
+  const [activeTabKey, setActiveTabKey] = useState('details');
+  
   // 获取工作项详情
   const fetchWorkItem = async () => {
     try {
@@ -626,6 +629,9 @@ const WorkItemDetail = () => {
   // 测试文件上传
   const handleTestUpload = async () => {
     try {
+      // 确保当前标签页是附件标签页
+      setActiveTabKey('attachments');
+      
       // 创建一个文件选择器
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
@@ -856,7 +862,10 @@ const WorkItemDetail = () => {
       </Card>
       
       <Card style={{ marginTop: 16 }}>
-        <Tabs defaultActiveKey="details">
+        <Tabs 
+          activeKey={activeTabKey} 
+          onChange={setActiveTabKey}
+        >
           <TabPane tab="详情" key="details">
             <Descriptions bordered column={2}>
               <Descriptions.Item label="预估工时" span={1}>

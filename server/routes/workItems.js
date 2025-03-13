@@ -1285,13 +1285,48 @@ router.delete('/:id/attachments/:attachmentId', authenticate, async (req, res) =
       return res.status(403).json({ message: '没有权限修改此工作项' });
     }
     
+    // 确保attachments是数组
+    let currentAttachments = [];
+    
+    if (!workItem.attachments) {
+      console.log('工作项没有附件，设置为空数组');
+      currentAttachments = [];
+    } else if (typeof workItem.attachments === 'string') {
+      try {
+        const parsedAttachments = JSON.parse(workItem.attachments);
+        if (Array.isArray(parsedAttachments)) {
+          currentAttachments = parsedAttachments;
+          console.log('成功解析附件字符串为数组，数量:', parsedAttachments.length);
+        } else {
+          console.error('解析后的附件不是数组:', parsedAttachments);
+          currentAttachments = [];
+        }
+      } catch (error) {
+        console.error('解析附件字符串失败:', error);
+        currentAttachments = [];
+      }
+    } else if (Array.isArray(workItem.attachments)) {
+      currentAttachments = workItem.attachments;
+    } else {
+      console.error('附件字段既不是字符串也不是数组:', typeof workItem.attachments);
+      currentAttachments = [];
+    }
+    
+    console.log('当前附件数量:', currentAttachments.length);
+    console.log('要删除的附件ID:', attachmentId);
+    
     // 过滤掉要删除的附件
-    const updatedAttachments = (workItem.attachments || []).filter(
-      attachment => attachment.filename !== attachmentId
+    const updatedAttachments = currentAttachments.filter(
+      attachment => attachment && attachment.filename !== attachmentId
     );
     
+    console.log('更新后的附件数量:', updatedAttachments.length);
+    
+    // 将附件数组转换为JSON字符串
+    const attachmentsJson = JSON.stringify(updatedAttachments);
+    
     // 更新工作项
-    await workItem.update({ attachments: updatedAttachments });
+    await workItem.update({ attachments: attachmentsJson });
     
     res.json({
       message: '附件删除成功',
@@ -1299,7 +1334,7 @@ router.delete('/:id/attachments/:attachmentId', authenticate, async (req, res) =
     });
   } catch (error) {
     console.error('删除附件错误:', error);
-    res.status(500).json({ message: '服务器错误' });
+    res.status(500).json({ message: '服务器错误: ' + error.message });
   }
 });
 
