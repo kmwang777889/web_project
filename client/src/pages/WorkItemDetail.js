@@ -808,12 +808,14 @@ const WorkItemDetail = () => {
               </Popconfirm>
             </>
           )}
-          <Button 
-            icon={<UploadOutlined />} 
-            onClick={handleUploadAttachment}
-          >
-            上传附件
-          </Button>
+          {hasEditPermission() && (
+            <Button 
+              icon={<UploadOutlined />} 
+              onClick={handleUploadAttachment}
+            >
+              上传附件
+            </Button>
+          )}
         </Space>
       </div>
       

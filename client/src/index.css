@@ -85,56 +85,66 @@ code {
   text-align: center;
 }
 
+/* 工单优先级标签样式 */
 .priority-tag {
-  border-radius: 12px;
-  padding: 2px 10px;
-  font-weight: 500;
+  font-weight: bold;
+  border-radius: 4px;
+  padding: 2px 8px;
 }
 
-.priority-urgent {
-  background-color: #f99a9d;
+.priority-tag.priority-urgent {
   color: #fff;
+  background-color: #f5222d;
+  border-color: #f5222d;
 }
 
-.priority-high {
-  background-color: #f9b79c;
+.priority-tag.priority-high {
   color: #fff;
+  background-color: #fa8c16;
+  border-color: #fa8c16;
 }
 
-.priority-medium {
-  background-color: #f6c659;
+.priority-tag.priority-medium {
   color: #fff;
-}
-
-.priority-low {
-  background-color: #73d897;
-  color: #fff;
-}
-
-.status-tag {
-  border-radius: 12px;
-  padding: 2px 10px;
-  font-weight: 500;
-}
-
-.status-pending {
-  background-color: #d9d9d9;
-  color: #666;
-}
-
-.status-in-progress {
   background-color: #1890ff;
-  color: #fff;
+  border-color: #1890ff;
 }
 
-.status-completed {
+.priority-tag.priority-low {
+  color: #fff;
   background-color: #52c41a;
-  color: #fff;
+  border-color: #52c41a;
 }
 
-.status-closed {
-  background-color: #8c8c8c;
+/* 工单状态标签样式 */
+.status-tag {
+  font-weight: bold;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.status-tag.status-pending {
   color: #fff;
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+.status-tag.status-in-progress {
+  color: #fff;
+  background-color: #722ed1;
+  border-color: #722ed1;
+}
+
+.status-tag.status-completed {
+  color: #fff;
+  background-color: #52c41a;
+  border-color: #52c41a;
+}
+
+.status-tag.status-closed {
+  color: #fff;
+  background-color: #d9d9d9;
+  border-color: #d9d9d9;
 }
 
 .type-tag {
@@ -330,4 +340,32 @@ code {
 
 .row-status-completed:hover > td {
   background-color: #d9f7be !important;
+}
+
+/* 工单管理页面样式 */
+.ticket-management-header {
+  margin-bottom: 24px;
+}
+
+.ticket-filter-card {
+  margin-bottom: 16px;
+}
+
+.ticket-statistics-row {
+  margin-bottom: 24px;
+}
+
+.ticket-table-card {
+  margin-bottom: 24px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .ticket-filter-item {
+    margin-bottom: 8px;
+  }
+  
+  .ticket-statistics-col {
+    margin-bottom: 16px;
+  }
 } 

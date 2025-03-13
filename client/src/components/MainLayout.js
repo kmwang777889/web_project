@@ -9,7 +9,8 @@ import {
   QuestionCircleOutlined,
   DownOutlined,
   RadarChartOutlined,
-  FileOutlined
+  FileOutlined,
+  FileTextOutlined
 } from '@ant-design/icons';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -253,6 +254,7 @@ const MainLayout = () => {
     const path = location.pathname;
     if (path === '/') return 'dashboard';
     if (path.startsWith('/projects') || path.startsWith('/work-items')) return 'projects';
+    if (path.startsWith('/admin/tickets')) return 'admin-tickets';
     return 'dashboard';
   };
   
@@ -276,6 +278,11 @@ const MainLayout = () => {
           <Menu.Item key="projects" icon={<ProjectOutlined />}>
             <Link to="/projects">项目管理</Link>
           </Menu.Item>
+          {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+            <Menu.Item key="admin-tickets" icon={<FileTextOutlined />}>
+              <Link to="/admin/tickets">工单管理</Link>
+            </Menu.Item>
+          )}
         </Menu>
         <div className="user-section">
           <Badge count={0}>

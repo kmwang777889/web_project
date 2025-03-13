@@ -56,24 +56,4 @@ const Ticket = sequelize.define('Ticket', {
   tableName: 'tickets',
 });
 
-// 生成工单编号的钩子
-Ticket.beforeCreate(async (ticket) => {
-  const date = new Date();
-  const year = date.getFullYear().toString().substr(-2);
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  
-  // 获取当天的工单数量
-  const count = await Ticket.count({
-    where: {
-      createdAt: {
-        [sequelize.Op.gte]: new Date(date.setHours(0, 0, 0, 0))
-      }
-    }
-  });
-  
-  // 生成工单编号: TK-年月日-序号
-  ticket.ticketNumber = `TK-${year}${month}${day}-${(count + 1).toString().padStart(3, '0')}`;
-});
-
 module.exports = Ticket; 

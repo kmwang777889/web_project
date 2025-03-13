@@ -9,7 +9,18 @@ const router = express.Router();
 // 获取工单列表
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { status, priority, search } = req.query;
+    const { 
+      status, 
+      priority, 
+      search, 
+      createdById, 
+      assigneeId, 
+      unassigned,
+      startDate,
+      endDate
+    } = req.query;
+    
+    console.log('工单列表查询参数:', req.query);
     
     // 构建查询条件
     const whereClause = {};
@@ -26,17 +37,40 @@ router.get('/', authenticate, async (req, res) => {
       whereClause.title = { [Op.like]: `%${search}%` };
     }
     
+    if (createdById) {
+      whereClause.createdById = createdById;
+    }
+    
+    if (assigneeId) {
+      whereClause.assigneeId = assigneeId;
+    }
+    
+    if (unassigned === 'true') {
+      whereClause.assigneeId = null;
+    }
+    
+    // 日期范围筛选
+    if (startDate || endDate) {
+      whereClause.createdAt = {};
+      
+      if (startDate) {
+        whereClause.createdAt[Op.gte] = new Date(startDate);
+      }
+      
+      if (endDate) {
+        // 设置结束日期为当天的23:59:59
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        whereClause.createdAt[Op.lte] = endDateTime;
+      }
+    }
+    
     // 普通用户只能查看自己创建的工单
     if (req.user.role === 'user') {
       whereClause.createdById = req.user.id;
     }
     
-    // 管理员可以查看分配给自己的工单
-    if (req.user.role === 'admin' || req.user.role === 'super_admin') {
-      if (req.query.assigned === 'true') {
-        whereClause.assigneeId = req.user.id;
-      }
-    }
+    console.log('最终查询条件:', whereClause);
     
     const tickets = await Ticket.findAll({
       where: whereClause,
@@ -44,17 +78,18 @@ router.get('/', authenticate, async (req, res) => {
         {
           model: User,
           as: 'assignee',
-          attributes: ['id', 'username', 'avatar']
+          attributes: ['id', 'username', 'avatar', 'role']
         },
         {
           model: User,
           as: 'creator',
-          attributes: ['id', 'username', 'avatar']
+          attributes: ['id', 'username', 'avatar', 'role']
         }
       ],
       order: [['createdAt', 'DESC']]
     });
     
+    console.log(`查询到 ${tickets.length} 条工单记录`);
     res.json(tickets);
   } catch (error) {
     console.error('获取工单列表错误:', error);
@@ -74,9 +109,12 @@ router.post(
   ],
   async (req, res) => {
     try {
+      console.log('开始创建工单，请求数据:', req.body);
+      
       // 验证请求
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('请求验证错误:', errors.array());
         return res.status(400).json({ errors: errors.array() });
       }
       
@@ -86,16 +124,38 @@ router.post(
       if (assigneeId) {
         const assignee = await User.findByPk(assigneeId);
         if (!assignee) {
+          console.log('指定的负责人不存在:', assigneeId);
           return res.status(404).json({ message: '指定的负责人不存在' });
         }
         
         if (assignee.role !== 'admin' && assignee.role !== 'super_admin') {
+          console.log('指定的负责人不是管理员:', assigneeId, assignee.role);
           return res.status(400).json({ message: '负责人必须是管理员或超级管理员' });
         }
       }
       
+      // 生成工单编号
+      const date = new Date();
+      const year = date.getFullYear().toString().substr(-2);
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      
+      // 获取当天的工单数量
+      const count = await Ticket.count({
+        where: {
+          createdAt: {
+            [Op.gte]: new Date(date.setHours(0, 0, 0, 0))
+          }
+        }
+      });
+      
+      // 生成工单编号: TK-年月日-序号
+      const ticketNumber = `TK-${year}${month}${day}-${(count + 1).toString().padStart(3, '0')}`;
+      console.log('生成的工单编号:', ticketNumber);
+      
       // 创建工单
       const ticket = await Ticket.create({
+        ticketNumber,
         title,
         description: description || '',
         priority: priority || '中',
@@ -104,6 +164,8 @@ router.post(
         createdById: req.user.id,
         comments: []
       });
+      
+      console.log('工单创建成功:', ticket.id, ticket.ticketNumber);
       
       res.status(201).json({
         message: '工单提交成功',
@@ -114,7 +176,8 @@ router.post(
       });
     } catch (error) {
       console.error('创建工单错误:', error);
-      res.status(500).json({ message: '服务器错误' });
+      console.error('错误堆栈:', error.stack);
+      res.status(500).json({ message: '服务器错误: ' + error.message });
     }
   }
 );

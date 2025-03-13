@@ -113,11 +113,6 @@ router.get('/', authenticate, async (req, res) => {
       whereClause.createdById = createdById;
     }
     
-    // 如果是普通用户，只能查看自己创建的工作项
-    if (req.user.role === 'user') {
-      whereClause.createdById = req.user.id;
-    }
-    
     const workItems = await WorkItem.findAll({
       where: whereClause,
       include: [
