@@ -31,6 +31,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import PendingSchedule from './PendingSchedule';
 import WorkItemList from './WorkItemList';
+import { renderStatusTag } from '../utils/tagRenderers';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -171,28 +172,6 @@ const ProjectList = () => {
       console.error('导出项目失败:', error);
       message.error('导出项目失败: ' + error.message);
     }
-  };
-  
-  // 渲染状态标签
-  const renderStatusTag = (status) => {
-    let className = '';
-    switch (status) {
-      case '待处理':
-        className = 'status-pending';
-        break;
-      case '进行中':
-        className = 'status-in-progress';
-        break;
-      case '已完成':
-        className = 'status-completed';
-        break;
-      case '关闭':
-        className = 'status-closed';
-        break;
-      default:
-        className = 'status-pending';
-    }
-    return <Tag className={`status-tag ${className}`}>{status}</Tag>;
   };
   
   // 表格列定义

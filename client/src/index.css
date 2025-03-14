@@ -85,92 +85,120 @@ code {
   text-align: center;
 }
 
-/* 工单优先级标签样式 */
-.priority-tag {
-  font-weight: bold;
-  border-radius: 4px;
-  padding: 2px 8px;
+/* 药丸形状标签样式 */
+.pill-tag {
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 20px;
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.priority-tag.priority-urgent {
-  color: #fff;
-  background-color: #f5222d;
-  border-color: #f5222d;
-}
-
-.priority-tag.priority-high {
-  color: #fff;
-  background-color: #fa8c16;
-  border-color: #fa8c16;
-}
-
-.priority-tag.priority-medium {
-  color: #fff;
-  background-color: #1890ff;
-  border-color: #1890ff;
-}
-
-.priority-tag.priority-low {
-  color: #fff;
-  background-color: #52c41a;
-  border-color: #52c41a;
-}
-
-/* 工单状态标签样式 */
+/* 状态标签样式 */
 .status-tag {
-  font-weight: bold;
-  border-radius: 4px;
-  padding: 2px 8px;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 20px;
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.status-tag.status-pending {
+.status-pending {
+  background-color: #f6c659;
   color: #fff;
-  background-color: #1890ff;
-  border-color: #1890ff;
+  border: 1px solid #f6c659;
 }
 
-.status-tag.status-in-progress {
+.status-in-progress {
+  background-color: #56abfb;
   color: #fff;
-  background-color: #722ed1;
-  border-color: #722ed1;
+  border: 1px solid #56abfb;
 }
 
-.status-tag.status-completed {
+.status-completed {
+  background-color: #73d897;
   color: #fff;
-  background-color: #52c41a;
-  border-color: #52c41a;
+  border: 1px solid #73d897;
 }
 
-.status-tag.status-closed {
+.status-closed {
+  background-color: #c3c3c3;
   color: #fff;
-  background-color: #d9d9d9;
-  border-color: #d9d9d9;
+  border: 1px solid #c3c3c3;
 }
 
+/* 优先级标签样式 */
+.priority-tag {
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 20px;
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.priority-urgent {
+  background-color: #ff7575;
+  color: #fff;
+  border: 1px solid #ff7575;
+}
+
+.priority-high {
+  background-color: #ff9f73;
+  color: #fff;
+  border: 1px solid #ff9f73;
+}
+
+.priority-medium {
+  background-color: #f6c659;
+  color: #fff;
+  border: 1px solid #f6c659;
+}
+
+.priority-low {
+  background-color: #5dcfff;
+  color: #fff;
+  border: 1px solid #5dcfff;
+}
+
+/* 工作项类型标签样式 */
 .type-tag {
   border-radius: 12px;
   padding: 2px 10px;
-  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .type-planning {
-  background-color: #722ed1;
+  background-color: #73d897;
   color: #fff;
+  border: 1px solid #73d897;
 }
 
 .type-requirement {
-  background-color: #13c2c2;
+  background-color: #9191f9;
   color: #fff;
+  border: 1px solid #9191f9;
 }
 
 .type-task {
-  background-color: #1890ff;
+  background-color: #30d1fc;
   color: #fff;
+  border: 1px solid #30d1fc;
 }
 
 .type-bug {
-  background-color: #fa541c;
+  background-color: #ff877b;
   color: #fff;
+  border: 1px solid #ff877b;
 }
 
 .gantt-container {

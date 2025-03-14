@@ -54,9 +54,9 @@
    - 工作项详情页面
    - 工作项状态跟踪
 
-4. **票据管理**：
-   - 票据创建、查看、编辑和删除
-   - 票据详情页面
+4. **工单管理**：
+   - 工单创建、查看、编辑和删除
+   - 工单详情页面
 
 5. **仪表盘**：
    - 数据可视化
@@ -77,7 +77,7 @@
 - **User**: 用户信息
 - **Project**: 项目信息
 - **WorkItem**: 工作项信息
-- **Ticket**: 票据信息
+- **Ticket**: 工单信息
 - **WorkItemActivity**: 工作项活动记录
 
 ## 路由结构
@@ -96,7 +96,7 @@
 - `/api/users`: 用户相关API
 - `/api/projects`: 项目相关API
 - `/api/work-items`: 工作项相关API
-- `/api/tickets`: 票据相关API
+- `/api/tickets`: 工单相关API
 - `/api/dashboard`: 仪表盘相关API
 
 ## 启动方式

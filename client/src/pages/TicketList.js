@@ -19,53 +19,10 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
+import { renderPriorityTag, renderStatusTag } from '../utils/tagRenderers';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
-
-// 优先级标签渲染
-const renderPriorityTag = (priority) => {
-  let color = '';
-  switch (priority) {
-    case '紧急':
-      color = 'priority-urgent';
-      break;
-    case '高':
-      color = 'priority-high';
-      break;
-    case '中':
-      color = 'priority-medium';
-      break;
-    case '低':
-      color = 'priority-low';
-      break;
-    default:
-      color = 'priority-medium';
-  }
-  return <Tag className={`priority-tag ${color}`}>{priority}</Tag>;
-};
-
-// 状态标签渲染
-const renderStatusTag = (status) => {
-  let className = '';
-  switch (status) {
-    case '待处理':
-      className = 'status-pending';
-      break;
-    case '进行中':
-      className = 'status-in-progress';
-      break;
-    case '已完成':
-      className = 'status-completed';
-      break;
-    case '关闭':
-      className = 'status-closed';
-      break;
-    default:
-      className = 'status-pending';
-  }
-  return <Tag className={`status-tag ${className}`}>{status}</Tag>;
-};
 
 const TicketList = () => {
   const [tickets, setTickets] = useState([]);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Table, 
   Card, 
@@ -6,11 +6,9 @@ import {
   Input, 
   Select, 
   Tag, 
-  Space, 
   message, 
   Spin,
   Tabs,
-  Badge,
   Tooltip,
   DatePicker,
   Row,
@@ -31,54 +29,11 @@ import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import dayjs from 'dayjs';
+import { renderPriorityTag, renderStatusTag } from '../utils/tagRenderers';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
-
-// 优先级标签渲染
-const renderPriorityTag = (priority) => {
-  let color = '';
-  switch (priority) {
-    case '紧急':
-      color = 'priority-urgent';
-      break;
-    case '高':
-      color = 'priority-high';
-      break;
-    case '中':
-      color = 'priority-medium';
-      break;
-    case '低':
-      color = 'priority-low';
-      break;
-    default:
-      color = 'priority-medium';
-  }
-  return <Tag className={`priority-tag ${color}`}>{priority}</Tag>;
-};
-
-// 状态标签渲染
-const renderStatusTag = (status) => {
-  let className = '';
-  switch (status) {
-    case '待处理':
-      className = 'status-pending';
-      break;
-    case '进行中':
-      className = 'status-in-progress';
-      break;
-    case '已完成':
-      className = 'status-completed';
-      break;
-    case '关闭':
-      className = 'status-closed';
-      break;
-    default:
-      className = 'status-pending';
-  }
-  return <Tag className={`status-tag ${className}`}>{status}</Tag>;
-};
 
 const AdminTicketList = () => {
   const [tickets, setTickets] = useState([]);
@@ -94,14 +49,6 @@ const AdminTicketList = () => {
     urgent: 0
   });
   
-  const { currentUser, isAdmin } = useAuth();
-  const navigate = useNavigate();
-  
-  // 如果不是管理员，重定向到首页
-  if (!isAdmin()) {
-    return <Navigate to="/" replace />;
-  }
-  
   // 筛选条件
   const [filters, setFilters] = useState({
     search: '',
@@ -113,8 +60,11 @@ const AdminTicketList = () => {
     endDate: ''
   });
   
-  // 获取工单列表
-  const fetchTickets = async () => {
+  const { currentUser, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  
+  // 获取工单列表 - 使用 useCallback 包装以避免依赖循环
+  const fetchTickets = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -145,7 +95,7 @@ const AdminTicketList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, filters, currentUser]);
   
   // 获取用户列表
   const fetchUsers = async () => {
@@ -161,12 +111,7 @@ const AdminTicketList = () => {
   useEffect(() => {
     fetchTickets();
     fetchUsers();
-  }, []);
-  
-  // 当筛选条件或标签页变化时重新获取数据
-  useEffect(() => {
-    fetchTickets();
-  }, [filters, activeTab]);
+  }, [fetchTickets]);
   
   // 处理筛选条件变化
   const handleFilterChange = (name, value) => {
@@ -305,6 +250,11 @@ const AdminTicketList = () => {
       )
     }
   ];
+  
+  // 如果不是管理员，重定向到首页
+  if (!isAdmin()) {
+    return <Navigate to="/" replace />;
+  }
   
   return (
     <div>
