@@ -54,20 +54,19 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
   
+  // 处理认证响应的通用函数
+  const handleAuthResponse = (response) => {
+    const { token, user } = response;
+    localStorage.setItem('token', token);
+    setCurrentUser(user);
+    return user;
+  };
+  
   // 登录函数
   const login = async (username, password) => {
     try {
       const response = await api.login({ username, password });
-      
-      const { token, user } = response;
-      
-      // 保存令牌到本地存储
-      localStorage.setItem('token', token);
-      
-      // 更新当前用户状态
-      setCurrentUser(user);
-      
-      return user;
+      return handleAuthResponse(response);
     } catch (error) {
       throw error;
     }
@@ -77,16 +76,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await api.register(userData);
-      
-      const { token, user } = response;
-      
-      // 保存令牌到本地存储
-      localStorage.setItem('token', token);
-      
-      // 更新当前用户状态
-      setCurrentUser(user);
-      
-      return user;
+      return handleAuthResponse(response);
     } catch (error) {
       throw error;
     }

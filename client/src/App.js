@@ -25,12 +25,7 @@ const ProtectedRoute = ({ children }) => {
     setupAxiosInterceptors(navigate);
   }, [navigate]);
 
-  useEffect(() => {
-    console.log('ProtectedRoute - 认证状态:', { currentUser, loading });
-  }, [currentUser, loading]);
-
   if (!currentUser) {
-    console.log('用户未登录，重定向到登录页面');
     return <Navigate to="/login" />;
   }
 
@@ -42,7 +37,6 @@ const PublicRoute = ({ children }) => {
   const { currentUser } = useAuth();
 
   if (currentUser) {
-    console.log('用户已登录，重定向到首页');
     return <Navigate to="/" />;
   }
 
@@ -64,13 +58,13 @@ const TicketRoute = () => {
 
 // 工单详情路由组件 - 确保返回按钮指向正确的页面
 const TicketDetailRoute = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const { id } = useParams();
   
-  // 传递额外的属性给TicketDetail组件，指示用户角色
+  // 使用 isAdmin() 函数替代直接判断
   return <TicketDetail 
     ticketId={id} 
-    isAdmin={currentUser?.role === 'admin' || currentUser?.role === 'super_admin'} 
+    isAdmin={isAdmin()} 
   />;
 };
 
