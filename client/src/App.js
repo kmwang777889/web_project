@@ -13,6 +13,8 @@ import MainLayout from './components/MainLayout';
 import NotFound from './pages/NotFound';
 import WorkItemList from './pages/WorkItemList';
 import AdminTicketList from './pages/AdminTicketList';
+import TicketList from './pages/TicketList';
+import TicketDetail from './pages/TicketDetail';
 
 // 受保护的路由组件
 const ProtectedRoute = ({ children }) => {
@@ -72,6 +74,8 @@ const App = () => {
             <Route path="projects" element={<ProjectList />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
             <Route path="work-items/:id" element={<WorkItemDetail />} />
+            <Route path="tickets" element={<TicketList />} />
+            <Route path="tickets/:id" element={<TicketDetail />} />
             <Route path="profile" element={<Profile />} />
             <Route path="admin/tickets" element={<AdminTicketList />} />
           </Route>

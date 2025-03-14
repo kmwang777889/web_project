@@ -254,6 +254,7 @@ const MainLayout = () => {
     const path = location.pathname;
     if (path === '/') return 'dashboard';
     if (path.startsWith('/projects') || path.startsWith('/work-items')) return 'projects';
+    if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/admin/tickets')) return 'admin-tickets';
     return 'dashboard';
   };
@@ -277,6 +278,9 @@ const MainLayout = () => {
           </Menu.Item>
           <Menu.Item key="projects" icon={<ProjectOutlined />}>
             <Link to="/projects">项目管理</Link>
+          </Menu.Item>
+          <Menu.Item key="tickets" icon={<FileOutlined />}>
+            <Link to="/tickets">我的工单</Link>
           </Menu.Item>
           {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
             <Menu.Item key="admin-tickets" icon={<FileTextOutlined />}>
