@@ -658,7 +658,11 @@ const ProjectGanttChart = ({ projects }) => {
       if (project.workItems && project.workItems.length > 0) {
         project.workItems.forEach(item => {
           if (item.scheduledStartDate && item.scheduledEndDate) {
+            // 使用startOf('day')确保开始日期从当天的开始计算
             const startDate = dayjs(item.scheduledStartDate).startOf('day');
+            
+            // 关键修改：使用endOf('day')确保结束日期包含整天
+            // 这样即使开始日期和结束日期是同一天，也会显示为一整天的长度
             const endDate = dayjs(item.scheduledEndDate).endOf('day');
             
             // 如果设置了日期范围筛选，则跳过不在范围内的工作项
@@ -690,6 +694,7 @@ const ProjectGanttChart = ({ projects }) => {
               name: item.title,
               project: project.name, // 添加项目名称，用于显示
               type: item.type,
+              // 使用ISO格式的日期字符串，确保精确到毫秒
               startDate: startDate.format('YYYY-MM-DD'),
               endDate: endDate.format('YYYY-MM-DD'),
               status: progressStatus,
@@ -769,10 +774,17 @@ const ProjectGanttChart = ({ projects }) => {
   };
   
   // 转换数据为甘特图所需格式
-  const convertedData = ganttData.map(item => ({
-    ...item,
-    range: [item.startDate, item.endDate]
-  }));
+  const convertedData = ganttData.map(item => {
+    // 计算实际的日期范围，确保即使是同一天也能正确显示
+    const start = dayjs(item.startDate).startOf('day');
+    const end = dayjs(item.endDate).endOf('day');
+    
+    return {
+      ...item,
+      // 使用ISO格式的日期字符串，确保精确到毫秒
+      range: [start.toISOString(), end.toISOString()]
+    };
+  });
   
   // 甘特图配置
   const config = {
@@ -793,14 +805,21 @@ const ProjectGanttChart = ({ projects }) => {
         if (!item) return '';
         
         const datum = item.data;
-        const duration = dayjs(datum.endDate).diff(dayjs(datum.startDate), 'day') + 1;
+        // 计算持续天数，加1确保同一天显示为1天
+        const startDate = dayjs(datum.startDate);
+        const endDate = dayjs(datum.endDate);
+        const duration = endDate.diff(startDate, 'day') + 1;
         
         // 返回带有标签的文本
         return `
           <div style="padding: 5px; font-size: 12px; line-height: 1.5;">
-            开始日期：${dayjs(datum.startDate).format('YYYY-MM-DD')}<br/>
-            结束日期：${dayjs(datum.endDate).format('YYYY-MM-DD')}<br/>
-            持续天数：${duration} 天
+            <div><strong>${datum.name}</strong></div>
+            <div>项目: ${datum.project}</div>
+            <div>类型: ${datum.type}</div>
+            <div>状态: ${datum.status}</div>
+            <div>开始日期: ${startDate.format('YYYY-MM-DD')}</div>
+            <div>结束日期: ${endDate.format('YYYY-MM-DD')}</div>
+            <div>持续天数: ${duration} 天</div>
           </div>
         `;
       },
@@ -830,7 +849,7 @@ const ProjectGanttChart = ({ projects }) => {
       grid: {
         line: {
           style: {
-            stroke: 'transparent',
+            stroke: '#f0f0f0', // 显示网格线，帮助区分日期
           },
         },
       },
@@ -863,8 +882,15 @@ const ProjectGanttChart = ({ projects }) => {
       range: {
         type: 'time',
         mask: 'YYYY-MM-DD',
-        tickInterval: 86400000,
+        tickInterval: 86400000, // 一天的毫秒数，确保每天显示一个刻度
         nice: true,
+        // 添加自定义的日期解析和格式化函数
+        formatter: (value) => {
+          return dayjs(value).format('YYYY-MM-DD');
+        },
+        parser: (value) => {
+          return dayjs(value).valueOf();
+        }
       },
     },
   };
