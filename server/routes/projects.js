@@ -3,6 +3,9 @@ const { body, validationResult } = require('express-validator');
 const { Project, WorkItem, User } = require('../models');
 const { authenticate, isAdmin, isCreatorOrAdmin } = require('../middleware/auth');
 const { Op } = require('sequelize');
+const path = require('path');
+const fs = require('fs');
+const ExcelJS = require('exceljs');
 
 const router = express.Router();
 
@@ -237,6 +240,11 @@ router.get('/:id/export', authenticate, async (req, res) => {
               attributes: ['id', 'username']
             }
           ]
+        },
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'username']
         }
       ]
     });
@@ -245,17 +253,128 @@ router.get('/:id/export', authenticate, async (req, res) => {
       return res.status(404).json({ message: '项目不存在' });
     }
     
-    // 这里应该实现导出Excel的逻辑
-    // 由于实际导出Excel需要额外的库，这里只返回导出URL
-    // 在实际实现中，可以使用exceljs或xlsx库生成Excel文件
+    // 确保导出目录存在
+    const uploadsDir = path.join(__dirname, '../public/exports');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      console.log('创建项目导出目录:', uploadsDir);
+    }
     
-    res.json({
-      message: '项目导出功能待实现',
-      exportUrl: `/api/projects/${id}/export-file`
-    });
+    // 创建Excel工作簿和工作表
+    const workbook = new ExcelJS.Workbook();
+    const projectSheet = workbook.addWorksheet('项目信息');
+    const workItemsSheet = workbook.addWorksheet('工作项列表');
+    
+    // 设置项目信息工作表
+    projectSheet.columns = [
+      { header: '属性', key: 'property', width: 20 },
+      { header: '值', key: 'value', width: 50 }
+    ];
+    
+    // 设置表头样式
+    projectSheet.getRow(1).font = { bold: true };
+    projectSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    
+    // 添加项目基本信息
+    projectSheet.addRow({ property: '项目ID', value: project.id });
+    projectSheet.addRow({ property: '项目名称', value: project.name });
+    projectSheet.addRow({ property: '项目描述', value: project.description || '无' });
+    projectSheet.addRow({ property: '项目状态', value: project.status });
+    projectSheet.addRow({ property: '开始日期', value: project.startDate ? new Date(project.startDate).toLocaleDateString() : '未设置' });
+    projectSheet.addRow({ property: '结束日期', value: project.endDate ? new Date(project.endDate).toLocaleDateString() : '未设置' });
+    projectSheet.addRow({ property: '创建者', value: project.creator ? project.creator.username : '未知' });
+    projectSheet.addRow({ property: '创建时间', value: new Date(project.createdAt).toLocaleString() });
+    projectSheet.addRow({ property: '最后更新时间', value: new Date(project.updatedAt).toLocaleString() });
+    projectSheet.addRow({ property: '工作项数量', value: project.WorkItems ? project.WorkItems.length : 0 });
+    
+    // 设置工作项列表工作表
+    workItemsSheet.columns = [
+      { header: 'ID', key: 'id', width: 10 },
+      { header: '标题', key: 'title', width: 30 },
+      { header: '类型', key: 'type', width: 15 },
+      { header: '状态', key: 'status', width: 15 },
+      { header: '优先级', key: 'priority', width: 15 },
+      { header: '创建者', key: 'creator', width: 15 },
+      { header: '负责人', key: 'assignee', width: 15 },
+      { header: '需求来源', key: 'source', width: 15 },
+      { header: '创建日期', key: 'createdAt', width: 20 },
+      { header: '期望完成日期', key: 'expectedCompletionDate', width: 20 },
+      { header: '排期开始日期', key: 'scheduledStartDate', width: 20 },
+      { header: '排期结束日期', key: 'scheduledEndDate', width: 20 },
+      { header: '最后更新日期', key: 'updatedAt', width: 20 },
+      { header: '描述', key: 'description', width: 40 }
+    ];
+    
+    // 设置表头样式
+    workItemsSheet.getRow(1).font = { bold: true };
+    workItemsSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+    
+    // 添加工作项数据
+    if (project.WorkItems && project.WorkItems.length > 0) {
+      project.WorkItems.forEach(item => {
+        workItemsSheet.addRow({
+          id: item.id,
+          title: item.title,
+          type: item.type,
+          status: item.status,
+          priority: item.priority,
+          creator: item.creator ? item.creator.username : '',
+          assignee: item.assignee ? item.assignee.username : '',
+          source: item.source || '',
+          createdAt: item.createdAt ? new Date(item.createdAt).toLocaleString() : '',
+          expectedCompletionDate: item.expectedCompletionDate ? new Date(item.expectedCompletionDate).toLocaleDateString() : '',
+          scheduledStartDate: item.scheduledStartDate ? new Date(item.scheduledStartDate).toLocaleDateString() : '',
+          scheduledEndDate: item.scheduledEndDate ? new Date(item.scheduledEndDate).toLocaleDateString() : '',
+          updatedAt: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '',
+          description: item.description || ''
+        });
+      });
+    }
+    
+    // 生成文件名
+    const timestamp = new Date().getTime();
+    const filename = `项目_${project.name}_${timestamp}.xlsx`;
+    const safeFilename = `project_${project.id}_export_${timestamp}.xlsx`;
+    const filepath = path.join(uploadsDir, safeFilename);
+    
+    console.log('保存Excel文件到:', filepath);
+    
+    try {
+      // 保存Excel文件
+      await workbook.xlsx.writeFile(filepath);
+      
+      // 检查文件是否成功创建
+      if (fs.existsSync(filepath)) {
+        console.log('Excel文件已成功创建，文件大小:', fs.statSync(filepath).size, '字节');
+      } else {
+        throw new Error('文件未成功创建');
+      }
+      
+      // 返回文件下载URL
+      const downloadUrl = `/exports/${safeFilename}`;
+      console.log('下载URL:', downloadUrl);
+      
+      res.json({
+        message: `已成功导出项目 "${project.name}" 及其 ${project.WorkItems ? project.WorkItems.length : 0} 个工作项`,
+        success: true,
+        downloadUrl,
+        filename: filename // 发送原始中文文件名给前端
+      });
+    } catch (fileError) {
+      console.error('保存Excel文件错误:', fileError);
+      res.status(500).json({ message: '保存Excel文件失败: ' + fileError.message });
+    }
   } catch (error) {
     console.error('导出项目错误:', error);
-    res.status(500).json({ message: '服务器错误' });
+    res.status(500).json({ message: '服务器错误: ' + error.message });
   }
 });
 

@@ -180,7 +180,14 @@ const ProjectDetail = () => {
   const handleExport = async () => {
     try {
       const response = await api.exportProject(id);
-      message.info(response.message);
+      
+      if (response.success && response.downloadUrl) {
+        message.success(response.message);
+        // 调用下载文件函数
+        api.downloadFile(response.downloadUrl, response.filename);
+      } else {
+        message.info(response.message);
+      }
     } catch (error) {
       console.error('导出项目失败:', error);
       message.error('导出项目失败: ' + error.message);
