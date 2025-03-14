@@ -254,8 +254,17 @@ const MainLayout = () => {
     const path = location.pathname;
     if (path === '/') return 'dashboard';
     if (path.startsWith('/projects') || path.startsWith('/work-items')) return 'projects';
+    
+    // 对于管理员用户，所有工单相关路径都高亮"工单管理"菜单
+    if ((currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && 
+        (path.startsWith('/tickets') || path.startsWith('/admin/tickets'))) {
+      return 'admin-tickets';
+    }
+    
+    // 对于普通用户，工单路径高亮"我的工单"菜单
     if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/admin/tickets')) return 'admin-tickets';
+    
     return 'dashboard';
   };
   
@@ -279,9 +288,11 @@ const MainLayout = () => {
           <Menu.Item key="projects" icon={<ProjectOutlined />}>
             <Link to="/projects">项目管理</Link>
           </Menu.Item>
-          <Menu.Item key="tickets" icon={<FileOutlined />}>
-            <Link to="/tickets">我的工单</Link>
-          </Menu.Item>
+          {(currentUser?.role !== 'admin' && currentUser?.role !== 'super_admin') && (
+            <Menu.Item key="tickets" icon={<FileOutlined />}>
+              <Link to="/tickets">我的工单</Link>
+            </Menu.Item>
+          )}
           {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
             <Menu.Item key="admin-tickets" icon={<FileTextOutlined />}>
               <Link to="/admin/tickets">工单管理</Link>

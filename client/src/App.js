@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { setupAxiosInterceptors } from './utils/api';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -49,6 +49,31 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+// 工单路由组件 - 根据用户角色重定向到不同的工单页面
+const TicketRoute = () => {
+  const { currentUser } = useAuth();
+  
+  // 如果是管理员用户，重定向到工单管理页面
+  if (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') {
+    return <Navigate to="/admin/tickets" />;
+  }
+  
+  // 普通用户显示我的工单页面
+  return <TicketList />;
+};
+
+// 工单详情路由组件 - 确保返回按钮指向正确的页面
+const TicketDetailRoute = () => {
+  const { currentUser } = useAuth();
+  const { id } = useParams();
+  
+  // 传递额外的属性给TicketDetail组件，指示用户角色
+  return <TicketDetail 
+    ticketId={id} 
+    isAdmin={currentUser?.role === 'admin' || currentUser?.role === 'super_admin'} 
+  />;
+};
+
 const App = () => {
   return (
     <AuthProvider>
@@ -74,8 +99,8 @@ const App = () => {
             <Route path="projects" element={<ProjectList />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
             <Route path="work-items/:id" element={<WorkItemDetail />} />
-            <Route path="tickets" element={<TicketList />} />
-            <Route path="tickets/:id" element={<TicketDetail />} />
+            <Route path="tickets" element={<TicketRoute />} />
+            <Route path="tickets/:id" element={<TicketDetailRoute />} />
             <Route path="profile" element={<Profile />} />
             <Route path="admin/tickets" element={<AdminTicketList />} />
           </Route>

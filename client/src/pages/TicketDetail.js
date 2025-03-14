@@ -31,10 +31,13 @@ const { Option } = Select;
 const { TextArea } = Input;
 const { Title, Text, Paragraph } = Typography;
 
-const TicketDetail = () => {
+const TicketDetail = ({ ticketId, isAdmin: propIsAdmin }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, isAdmin: contextIsAdmin } = useAuth();
+  
+  // 使用传入的isAdmin属性，如果没有则使用上下文中的isAdmin函数
+  const isAdminUser = propIsAdmin !== undefined ? propIsAdmin : contextIsAdmin();
   
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,9 @@ const TicketDetail = () => {
   const fetchTicket = async () => {
     try {
       setLoading(true);
-      const data = await api.getTicketById(id);
+      // 使用传入的ticketId或从URL参数中获取的id
+      const ticketIdToUse = ticketId || id;
+      const data = await api.getTicketById(ticketIdToUse);
       setTicket(data);
     } catch (error) {
       console.error('获取工单详情失败:', error);
@@ -72,7 +77,7 @@ const TicketDetail = () => {
   useEffect(() => {
     fetchTicket();
     fetchAdmins();
-  }, [id]);
+  }, [ticketId, id]);
   
   // 打开编辑工单模态框
   const showEditModal = () => {
@@ -139,7 +144,7 @@ const TicketDetail = () => {
   const hasEditPermission = () => {
     if (!ticket || !currentUser) return false;
     
-    return isAdmin();
+    return isAdminUser;
   };
   
   if (loading) {
@@ -155,7 +160,7 @@ const TicketDetail = () => {
       <div>
         <Button 
           icon={<ArrowLeftOutlined />} 
-          onClick={() => navigate('/tickets')}
+          onClick={() => navigate(isAdminUser ? '/admin/tickets' : '/tickets')}
           style={{ marginBottom: 16 }}
         >
           返回工单列表
@@ -174,7 +179,7 @@ const TicketDetail = () => {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <Button 
           icon={<ArrowLeftOutlined />} 
-          onClick={() => navigate('/tickets')}
+          onClick={() => navigate(isAdminUser ? '/admin/tickets' : '/tickets')}
         >
           返回工单列表
         </Button>
