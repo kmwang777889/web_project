@@ -213,6 +213,19 @@ const WorkItemList = () => {
         console.log('状态变更为已完成，自动设置完成日期:', values.completionDate);
       }
       
+      // 确保对于管理员和超级管理员，预估工时和排期日期能够被保存
+      if ((isAdmin() || currentUser?.role === 'super_admin') && !editingWorkItem) {
+        console.log('管理员创建工作项，直接保存排期信息:', {
+          estimatedHours: values.estimatedHours,
+          scheduledStartDate: values.scheduledStartDate,
+          scheduledEndDate: values.scheduledEndDate
+        });
+        // 确保字段存在，即使是空值也要保存
+        if (!values.hasOwnProperty('estimatedHours')) {
+          values.estimatedHours = null;
+        }
+      }
+      
       if (editingWorkItem) {
         // 更新工作项
         await api.updateWorkItem(editingWorkItem.id, values);

@@ -190,7 +190,10 @@ router.post(
     body('source').optional().isIn(['内部需求', '品牌需求']).withMessage('需求来源无效'),
     body('expectedCompletionDate').optional().isISO8601().withMessage('期望完成日期格式无效'),
     body('projectId').optional().isInt().withMessage('项目ID必须是整数'),
-    body('assigneeId').optional().isInt().withMessage('负责人ID必须是整数')
+    body('assigneeId').optional().isInt().withMessage('负责人ID必须是整数'),
+    body('estimatedHours').optional().isFloat({ min: 0 }).withMessage('预估工时必须是非负数'),
+    body('scheduledStartDate').optional().isISO8601().withMessage('排期开始日期格式无效'),
+    body('scheduledEndDate').optional().isISO8601().withMessage('排期结束日期格式无效')
   ],
   async (req, res) => {
     try {
@@ -214,7 +217,10 @@ router.post(
         source,
         expectedCompletionDate,
         projectId,
-        assigneeId
+        assigneeId,
+        estimatedHours,
+        scheduledStartDate,
+        scheduledEndDate
       } = req.body;
       
       // 如果指定了负责人，检查负责人是否为管理员
@@ -404,7 +410,10 @@ router.post(
         projectId: projectId || null,
         assigneeId: assigneeId || null,
         createdById: req.user.id,
-        attachments
+        attachments,
+        estimatedHours: estimatedHours || null,
+        scheduledStartDate: scheduledStartDate || null,
+        scheduledEndDate: scheduledEndDate || null
       });
       
       // 记录创建活动
