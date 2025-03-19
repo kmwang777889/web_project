@@ -258,7 +258,6 @@ const AdminTicketList = () => {
   
   return (
     <div>
-      <h1>工单管理中心</h1>
       
       {/* 统计卡片 */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
