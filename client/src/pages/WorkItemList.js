@@ -175,6 +175,7 @@ const WorkItemList = () => {
         expectedCompletionDate: workItem.expectedCompletionDate ? dayjs(workItem.expectedCompletionDate) : null,
         scheduledStartDate: workItem.scheduledStartDate ? dayjs(workItem.scheduledStartDate) : null,
         scheduledEndDate: workItem.scheduledEndDate ? dayjs(workItem.scheduledEndDate) : null,
+        completionDate: workItem.completionDate ? dayjs(workItem.completionDate) : null,
       });
     }
     
@@ -206,11 +207,22 @@ const WorkItemList = () => {
         values.scheduledEndDate = values.scheduledEndDate.format('YYYY-MM-DD');
       }
       
-      // 如果状态变为已完成，自动设置完成日期
-      if (values.status === '已完成' && editingWorkItem && editingWorkItem.status !== '已完成') {
-        // 设置完成日期为当前日期
-        values.completionDate = new Date().toISOString().split('T')[0];
-        console.log('状态变更为已完成，自动设置完成日期:', values.completionDate);
+      // 处理完成日期
+      if (values.completionDate) {
+        values.completionDate = values.completionDate.format('YYYY-MM-DD');
+      }
+      
+      // 如果状态变为已完成，并且没有设置完成日期，自动设置完成日期为当天
+      if (values.status === '已完成' && !values.completionDate) {
+        if (editingWorkItem && editingWorkItem.status !== '已完成') {
+          // 设置完成日期为当前日期
+          values.completionDate = new Date().toISOString().split('T')[0];
+          console.log('状态变更为已完成，自动设置完成日期:', values.completionDate);
+        } else if (!editingWorkItem) {
+          // 新建工作项且状态为已完成
+          values.completionDate = new Date().toISOString().split('T')[0];
+          console.log('新建工作项状态为已完成，自动设置完成日期:', values.completionDate);
+        }
       }
       
       // 确保对于管理员和超级管理员，预估工时和排期日期能够被保存
@@ -228,16 +240,34 @@ const WorkItemList = () => {
       
       if (editingWorkItem) {
         // 更新工作项
-        await api.updateWorkItem(editingWorkItem.id, values);
-        message.success('工作项更新成功');
+        const result = await api.updateWorkItem(editingWorkItem.id, values);
+        
+        if (result && result.workItem) {
+          // 如果有更新后的工作项数据，则更新列表中的对应项
+          setWorkItems(prev => prev.map(item => 
+            item.id === editingWorkItem.id ? result.workItem : item
+          ));
+          message.success('工作项更新成功');
+        } else {
+          // 如果没有返回工作项数据，则重新获取列表
+          message.success('工作项更新成功');
+          fetchWorkItems();
+        }
       } else {
         // 创建工作项
-        await api.createWorkItem(values);
-        message.success('工作项创建成功');
+        const result = await api.createWorkItem(values);
+        if (result && result.workItem) {
+          // 如果有返回的工作项数据，直接添加到列表
+          setWorkItems(prev => [result.workItem, ...prev]);
+          message.success('工作项创建成功');
+        } else {
+          // 如果没有返回工作项数据，则重新获取列表
+          message.success('工作项创建成功');
+          fetchWorkItems();
+        }
       }
       
       setModalVisible(false);
-      fetchWorkItems();
     } catch (error) {
       console.error('保存工作项失败:', error);
       message.error('保存工作项失败: ' + error.message);
@@ -934,6 +964,20 @@ const WorkItemList = () => {
               >
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
+            </div>
+          )}
+          
+          {isAdmin() && (
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <Form.Item
+                name="completionDate"
+                label="完成日期"
+                style={{ flex: 1 }}
+                extra="可手动设置完成日期，否则在状态变为已完成时自动设置为当天"
+              >
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+              <div style={{ flex: 1 }}></div>
             </div>
           )}
         </Form>

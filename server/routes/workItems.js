@@ -1035,63 +1035,122 @@ router.put(
           
           // 对特殊字段进行特殊处理
           if (field === 'status') {
-            await recordActivity(
-              id,
-              req.user.id,
-              'status_change',
-              field,
-              workItem[field],
-              req.body[field],
-              `将状态从 "${workItem[field]}" 修改为 "${req.body[field]}"`
-            );
-            
-            // 如果状态变为已完成，自动设置完成日期
-            if (req.body[field] === '已完成' && workItem[field] !== '已完成') {
-              const today = new Date().toISOString().split('T')[0];
-              updateData.completionDate = today;
-              console.log('状态变为已完成，自动设置完成日期:', today);
+            // 检查状态是否真的变化了
+            if (req.body[field] !== workItem[field]) {
+              await recordActivity(
+                id,
+                req.user.id,
+                'status_change',
+                field,
+                workItem[field],
+                req.body[field],
+                `将状态从 "${workItem[field]}" 修改为 "${req.body[field]}"`
+              );
               
-              // 记录完成日期变更活动
+              // 如果状态变为已完成，自动设置完成日期
+              if (req.body[field] === '已完成' && workItem[field] !== '已完成') {
+                const today = new Date().toISOString().split('T')[0];
+                updateData.completionDate = today;
+                console.log('状态变为已完成，自动设置完成日期:', today);
+                
+                // 记录完成日期变更活动
+                if (today !== workItem.completionDate) {
+                  await recordActivity(
+                    id,
+                    req.user.id,
+                    'update',
+                    'completionDate',
+                    workItem.completionDate,
+                    today,
+                    `自动设置完成日期为 ${today}`
+                  );
+                }
+              }
+            }
+          } else if (field === 'assigneeId') {
+            // 检查负责人是否真的变化了
+            if (String(req.body[field]) !== String(workItem[field])) {
+              const oldAssignee = workItem.assigneeId ? await User.findByPk(workItem.assigneeId) : null;
+              const newAssignee = req.body[field] ? await User.findByPk(req.body[field]) : null;
+              await recordActivity(
+                id,
+                req.user.id,
+                'assignee_change',
+                field,
+                workItem[field],
+                req.body[field],
+                `将负责人从 ${oldAssignee ? oldAssignee.username : '未分配'} 修改为 ${newAssignee ? newAssignee.username : '未分配'}`
+              );
+            }
+          } else {
+            // 对于日期字段，需要特殊处理，因为日期字符串格式可能不同但代表同一天
+            let oldValue = workItem[field];
+            let newValue = req.body[field];
+            let valuesAreDifferent = true;
+            
+            // 检查是否为日期字段
+            if (field.toLowerCase().includes('date') && oldValue && newValue) {
+              // 转换为相同格式后再比较
+              try {
+                const oldDate = new Date(oldValue).toISOString().split('T')[0];
+                const newDate = new Date(newValue).toISOString().split('T')[0];
+                valuesAreDifferent = oldDate !== newDate;
+                
+                // 使用标准化后的值
+                oldValue = oldDate;
+                newValue = newDate;
+                
+                console.log(`日期比较 - 字段: ${field}, 旧值: ${oldDate}, 新值: ${newDate}, 是否不同: ${valuesAreDifferent}`);
+              } catch (error) {
+                console.error(`日期转换失败: ${field}`, error);
+                // 保持默认比较行为
+              }
+            } else {
+              // 对于非日期字段，直接比较值是否相等
+              valuesAreDifferent = String(oldValue || '') !== String(newValue || '');
+            }
+            
+            // 只有当值真正不同时才记录活动
+            if (valuesAreDifferent) {
               await recordActivity(
                 id,
                 req.user.id,
                 'update',
-                'completionDate',
-                workItem.completionDate,
-                today,
-                `自动设置完成日期为 ${today}`
+                field,
+                oldValue,
+                newValue,
+                `修改了 ${getFieldDisplayName(field)} 字段，从 "${oldValue || '空'}" 修改为 "${newValue}"`
               );
+            } else {
+              console.log(`字段 ${field} 的值未实际改变，不记录活动`);
             }
-          } else if (field === 'assigneeId') {
-            const oldAssignee = workItem.assigneeId ? await User.findByPk(workItem.assigneeId) : null;
-            const newAssignee = req.body[field] ? await User.findByPk(req.body[field]) : null;
-            await recordActivity(
-              id,
-              req.user.id,
-              'assignee_change',
-              field,
-              workItem[field],
-              req.body[field],
-              `将负责人从 ${oldAssignee ? oldAssignee.username : '未分配'} 修改为 ${newAssignee ? newAssignee.username : '未分配'}`
-            );
-          } else {
-            await recordActivity(
-              id,
-              req.user.id,
-              'update',
-              field,
-              workItem[field],
-              req.body[field],
-              `修改了 ${getFieldDisplayName(field)} 字段，从 "${workItem[field] || '空'}" 修改为 "${req.body[field]}"`
-            );
           }
         }
       }
       
       // 如果客户端已经设置了completionDate，则使用客户端设置的值
       if (req.body.completionDate !== undefined) {
-        updateData.completionDate = req.body.completionDate;
-        console.log('使用客户端设置的完成日期:', req.body.completionDate);
+        const oldCompletionDate = workItem.completionDate ? new Date(workItem.completionDate).toISOString().split('T')[0] : null;
+        const newCompletionDate = req.body.completionDate ? new Date(req.body.completionDate).toISOString().split('T')[0] : null;
+        
+        // 只有当完成日期真正变化时才更新并记录活动
+        if (oldCompletionDate !== newCompletionDate) {
+          updateData.completionDate = req.body.completionDate;
+          console.log('使用客户端设置的完成日期:', req.body.completionDate);
+          
+          // 记录完成日期变更活动
+          await recordActivity(
+            id,
+            req.user.id,
+            'update',
+            'completionDate',
+            workItem.completionDate,
+            req.body.completionDate,
+            `修改了 完成日期 字段，从 "${workItem.completionDate || '空'}" 修改为 "${req.body.completionDate}"`
+          );
+        } else {
+          console.log('完成日期未实际改变，不记录活动');
+        }
       }
       
       // 合并现有附件和新附件
