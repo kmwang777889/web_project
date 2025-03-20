@@ -17,6 +17,9 @@ const userRoutes = require('./routes/users');
 const ticketRoutes = require('./routes/tickets');
 const dashboardRoutes = require('./routes/dashboard');
 
+// 引入数据初始化脚本
+const initializeData = require('./scripts/initializeData');
+
 const app = express();
 
 // 中间件
@@ -63,9 +66,68 @@ async function startServer() {
       process.exit(1);
     }
     
-    // 同步数据库模型
+    // 同步数据库模型 - 使用force: true强制重建表结构
     console.log('正在同步数据库模型...');
-    await sequelize.sync();
+    
+    // 仅在开发环境使用force:true，生产环境请勿使用
+    if (process.env.NODE_ENV === 'development') {
+      console.log('开发环境：强制重建数据库表...');
+      
+      // 1. 先同步所有模型，创建基础表结构
+      await sequelize.sync({ force: true });
+      console.log('基础表结构创建完成');
+      
+      // 2. 初始化基础数据
+      await initializeData();
+      
+      // 3. 验证workitems表是否已创建
+      const [workitemsExist] = await sequelize.query(`
+        SELECT COUNT(*) as count FROM information_schema.tables 
+        WHERE table_schema = 'project_management' 
+        AND table_name = 'workitems'
+      `);
+      
+      // 4. 仅在workitems表存在时创建workitem_activities表
+      if (workitemsExist[0].count > 0) {
+        console.log('检测到workitems表已存在，准备创建workitem_activities表');
+        
+        try {
+          await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS workitem_activities (
+              id INTEGER auto_increment,
+              workItemId INTEGER NOT NULL,
+              userId INTEGER NOT NULL,
+              type ENUM('create', 'update', 'status_change', 'assignee_change', 'comment', 'attachment_add', 'attachment_delete') NOT NULL,
+              field VARCHAR(255),
+              oldValue TEXT,
+              newValue TEXT, 
+              description TEXT NOT NULL,
+              createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              FOREIGN KEY (workItemId) REFERENCES workitems(id) ON DELETE CASCADE,
+              FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+          `);
+          
+          await sequelize.query(`
+            ALTER TABLE workitem_activities 
+            ADD INDEX workitem_activities_work_item_id (workItemId);
+          `);
+          
+          console.log('成功创建workitem_activities表');
+        } catch (error) {
+          console.error('创建workitem_activities表失败:', error.message);
+        }
+      } else {
+        console.log('workitems表不存在，跳过创建workitem_activities表');
+      }
+    } else {
+      // 生产环境仅使用alter:true
+      console.log('生产环境：更新数据库表结构...');
+      await sequelize.sync({ alter: true });
+    }
+    
     console.log('数据库模型同步成功');
     
     // 启动 Express 服务器

@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, isAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -43,31 +43,25 @@ router.post(
         return res.status(400).json({ message: '手机号已被注册' });
       }
 
-      // 创建新用户
+      // 创建新用户，状态设为待审核
       const user = await User.create({
         username,
         password,
         phone,
         brand,
-        role: 'user' // 默认角色
+        role: 'user', // 默认角色
+        status: 'pending' // 设置状态为待审核
       });
 
-      // 生成JWT令牌
-      const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN }
-      );
-
       res.status(201).json({
-        message: '注册成功',
-        token,
+        message: '注册成功，请等待管理员审核后方可登录',
         user: {
           id: user.id,
           username: user.username,
           phone: user.phone,
           brand: user.brand,
-          role: user.role
+          role: user.role,
+          status: user.status
         }
       });
     } catch (error) {
@@ -106,6 +100,15 @@ router.post(
         return res.status(401).json({ message: '用户名或密码错误' });
       }
 
+      // 检查用户是否已通过审核
+      if (user.status !== 'approved') {
+        if (user.status === 'pending') {
+          return res.status(403).json({ message: '您的账号正在审核中，请等待管理员审核' });
+        } else if (user.status === 'rejected') {
+          return res.status(403).json({ message: '您的账号申请被拒绝，请联系管理员' });
+        }
+      }
+
       // 生成JWT令牌
       const token = jwt.sign(
         { id: user.id, username: user.username, role: user.role },
@@ -122,7 +125,8 @@ router.post(
           phone: user.phone,
           brand: user.brand,
           role: user.role,
-          avatar: user.avatar
+          avatar: user.avatar,
+          status: user.status
         }
       });
     } catch (error) {
@@ -135,18 +139,69 @@ router.post(
 // 获取当前用户信息
 router.get('/me', authenticate, async (req, res) => {
   try {
+    const user = await User.findByPk(req.user.id);
+    
     res.json({
       user: {
-        id: req.user.id,
-        username: req.user.username,
-        phone: req.user.phone,
-        brand: req.user.brand,
-        role: req.user.role,
-        avatar: req.user.avatar
+        id: user.id,
+        username: user.username,
+        phone: user.phone,
+        brand: user.brand,
+        role: user.role,
+        avatar: user.avatar,
+        status: user.status
       }
     });
   } catch (error) {
     console.error('获取用户信息错误:', error);
+    res.status(500).json({ message: '服务器错误' });
+  }
+});
+
+// 新增: 获取待审核用户列表 (仅管理员可访问)
+router.get('/pending-users', authenticate, isAdmin, async (req, res) => {
+  try {
+    const pendingUsers = await User.findAll({
+      where: { status: 'pending' },
+      attributes: ['id', 'username', 'phone', 'brand', 'role', 'status', 'createdAt']
+    });
+    
+    res.json({ users: pendingUsers });
+  } catch (error) {
+    console.error('获取待审核用户列表错误:', error);
+    res.status(500).json({ message: '服务器错误' });
+  }
+});
+
+// 新增: 审核用户 (仅管理员可访问)
+router.put('/approve-user/:id', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reason } = req.body;
+    
+    if (status !== 'approved' && status !== 'rejected') {
+      return res.status(400).json({ message: '状态值无效' });
+    }
+    
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    
+    // 更新用户状态
+    user.status = status;
+    await user.save();
+    
+    res.json({ 
+      message: status === 'approved' ? '用户审核通过' : '用户审核被拒绝',
+      user: {
+        id: user.id,
+        username: user.username,
+        status: user.status
+      }
+    });
+  } catch (error) {
+    console.error('审核用户错误:', error);
     res.status(500).json({ message: '服务器错误' });
   }
 });

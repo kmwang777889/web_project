@@ -10,7 +10,8 @@ import {
   DownOutlined,
   RadarChartOutlined,
   FileOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -110,6 +111,7 @@ const MainLayout = () => {
     // 对于普通用户，工单路径高亮"我的工单"菜单
     if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/admin/tickets')) return 'admin-tickets';
+    if (path.startsWith('/admin/user-approval')) return 'admin-user-approval';
     
     return 'dashboard';
   };
@@ -127,6 +129,7 @@ const MainLayout = () => {
           mode="horizontal" 
           selectedKeys={[getSelectedKey()]}
           theme="dark"
+          style={{ flex: 1, minWidth: 0 }}
         >
           <Menu.Item key="dashboard" icon={<DashboardOutlined />}>
             <Link to="/">概览</Link>
@@ -142,6 +145,12 @@ const MainLayout = () => {
           {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
             <Menu.Item key="admin-tickets" icon={<FileTextOutlined />}>
               <Link to="/admin/tickets">工单管理</Link>
+            </Menu.Item>
+          )}
+          {/* 新增: 用户审核菜单项 */}
+          {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+            <Menu.Item key="admin-user-approval" icon={<TeamOutlined />}>
+              <Link to="/admin/user-approval">用户审核</Link>
             </Menu.Item>
           )}
         </Menu>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Typography, Select, message, Spin } from 'antd';
+import { Form, Input, Button, Typography, Select, message, Spin, Alert } from 'antd';
 import { UserOutlined, LockOutlined, PhoneOutlined, BankOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ const { Option } = Select;
 
 const Register = () => {
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const { register, currentUser } = useAuth();
   const navigate = useNavigate();
   
@@ -24,9 +25,10 @@ const Register = () => {
     setLoading(true);
     
     try {
-      await register(values);
-      message.success('注册成功');
-      navigate('/');
+      const user = await register(values);
+      message.success('注册成功，请等待管理员审核后方可登录');
+      setRegistered(true);
+      // 不再自动导航到首页，而是显示等待审核的消息
     } catch (error) {
       console.error('注册失败:', error);
       if (error.response && error.response.data) {
@@ -39,6 +41,29 @@ const Register = () => {
     }
   };
   
+  // 如果已注册但尚未审核，显示等待审核的消息
+  if (registered) {
+    return (
+      <div className="login-container">
+        <div className="login-form">
+          <div className="login-form-title">
+            <Title level={2}>注册成功</Title>
+          </div>
+          <Alert
+            message="注册申请已提交"
+            description="您的账号注册申请已成功提交，请等待管理员审核。审核通过后您将收到通知，然后可以登录系统。"
+            type="success"
+            showIcon
+            style={{ marginBottom: 20 }}
+          />
+          <Button type="primary" onClick={() => navigate('/login')}>
+            返回登录页
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="login-container">
       <div className="login-form">
@@ -46,6 +71,14 @@ const Register = () => {
           <Title level={2}>项目管理系统</Title>
           <Text type="secondary">创建新账户</Text>
         </div>
+        
+        <Alert
+          message="用户审核制度"
+          description="注册成功后，您的账号需要经过管理员审核才能使用系统功能。请填写真实信息，以便管理员及时审核。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 20 }}
+        />
         
         <Spin spinning={loading}>
           <Form

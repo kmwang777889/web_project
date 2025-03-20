@@ -57,8 +57,13 @@ export const AuthProvider = ({ children }) => {
   // 处理认证响应的通用函数
   const handleAuthResponse = (response) => {
     const { token, user } = response;
-    localStorage.setItem('token', token);
-    setCurrentUser(user);
+    
+    // 如果有token（登录成功），则保存用户信息
+    if (token) {
+      localStorage.setItem('token', token);
+      setCurrentUser(user);
+    }
+    
     return user;
   };
   
@@ -76,7 +81,8 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await api.register(userData);
-      return handleAuthResponse(response);
+      // 注册后不再自动登录，只返回注册结果
+      return response.user;
     } catch (error) {
       throw error;
     }
@@ -103,6 +109,31 @@ export const AuthProvider = ({ children }) => {
     return currentUser && currentUser.role === 'super_admin';
   };
   
+  // 检查用户是否已审核通过
+  const isApproved = () => {
+    return currentUser && currentUser.status === 'approved';
+  };
+  
+  // 获取待审核用户列表（仅管理员可用）
+  const getPendingUsers = async () => {
+    try {
+      const response = await api.getPendingUsers();
+      return response.users;
+    } catch (error) {
+      throw error;
+    }
+  };
+  
+  // 审核用户（仅管理员可用）
+  const approveUser = async (userId, status, reason) => {
+    try {
+      const response = await api.approveUser(userId, { status, reason });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+  
   // 提供的上下文值
   const value = {
     currentUser,
@@ -112,7 +143,10 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateUserInfo,
     isAdmin,
-    isSuperAdmin
+    isSuperAdmin,
+    isApproved,
+    getPendingUsers,
+    approveUser
   };
   
   return (

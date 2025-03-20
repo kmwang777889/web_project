@@ -125,6 +125,10 @@ export default {
   register: (data) => apiRequest('post', '/auth/register', data),
   getCurrentUser: () => apiRequest('get', '/auth/me'),
   
+  // 用户审核相关
+  getPendingUsers: () => apiRequest('get', '/auth/pending-users'),
+  approveUser: (userId, data) => apiRequest('put', `/auth/approve-user/${userId}`, data),
+  
   // 用户相关
   getUsers: () => apiRequest('get', '/users'),
   getAdmins: () => apiRequest('get', '/users/admins'),
