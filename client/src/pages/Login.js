@@ -19,12 +19,24 @@ const Login = () => {
     console.log('尝试登录:', username);
     
     try {
-      await login(username, password);
-      message.success('登录成功');
-      navigate('/');
+      const user = await login(username, password);
+      if (user) {
+        message.success('登录成功');
+        navigate('/');
+      }
+      // 登录失败的情况已在 AuthContext 中处理
     } catch (error) {
       console.error('登录失败:', error);
-      message.error('登录失败: ' + (error.message || '用户名或密码错误'));
+      
+      if (error.status === 401) {
+        message.error('用户名或密码错误');
+      } else if (error.message.includes('pending')) {
+        message.error('您的账户正在审核中，请稍后再试');
+      } else if (error.message.includes('disabled')) {
+        message.error('您的账户已被禁用，请联系管理员');
+      } else {
+        message.error('登录失败: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }

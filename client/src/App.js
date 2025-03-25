@@ -15,6 +15,7 @@ import WorkItemList from './pages/WorkItemList';
 import AdminTicketList from './pages/AdminTicketList';
 import TicketList from './pages/TicketList';
 import TicketDetail from './pages/TicketDetail';
+import UserManagement from './pages/UserManagement';
 
 // 受保护的路由组件
 const ProtectedRoute = ({ children }) => {
@@ -40,6 +41,21 @@ const PublicRoute = ({ children }) => {
     return <Navigate to="/" />;
   }
 
+  return children;
+};
+
+// 管理员路由组件 - 只允许管理员访问
+const AdminRoute = ({ children }) => {
+  const { currentUser, isAdmin } = useAuth();
+  
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+  
+  if (!isAdmin()) {
+    return <Navigate to="/" />;
+  }
+  
   return children;
 };
 
@@ -97,6 +113,11 @@ const App = () => {
             <Route path="tickets/:id" element={<TicketDetailRoute />} />
             <Route path="profile" element={<Profile />} />
             <Route path="admin/tickets" element={<AdminTicketList />} />
+            <Route path="admin/users" element={
+              <AdminRoute>
+                <UserManagement />
+              </AdminRoute>
+            } />
           </Route>
 
           <Route path="*" element={<NotFound />} />

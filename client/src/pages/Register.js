@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Typography, Select, message, Spin } from 'antd';
+import { Form, Input, Button, Typography, Select, message, Spin, Alert } from 'antd';
 import { UserOutlined, LockOutlined, PhoneOutlined, BankOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../utils/api';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 const Register = () => {
   const [loading, setLoading] = useState(false);
-  const { register, currentUser } = useAuth();
+  const [registered, setRegistered] = useState(false);
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
   
   // 如果用户已登录，重定向到首页
@@ -24,9 +26,10 @@ const Register = () => {
     setLoading(true);
     
     try {
-      await register(values);
-      message.success('注册成功');
-      navigate('/');
+      // 直接调用 API，而不是通过 auth context 来注册用户
+      await api.register(values);
+      setRegistered(true);
+      message.success('注册成功，请等待管理员审核');
     } catch (error) {
       console.error('注册失败:', error);
       if (error.response && error.response.data) {
@@ -38,6 +41,38 @@ const Register = () => {
       setLoading(false);
     }
   };
+  
+  // 如果已经注册成功，显示等待审核的消息
+  if (registered) {
+    return (
+      <div className="login-container">
+        <div className="login-form">
+          <div className="login-form-title">
+            <Title level={2}>注册成功</Title>
+          </div>
+          
+          <Alert
+            message="账户正在审核中"
+            description={
+              <div>
+                <p>您的账户已成功注册，但需要管理员审核通过后才能使用。</p>
+                <p>请耐心等待，审核通过后我们会通知您。</p>
+              </div>
+            }
+            type="info"
+            showIcon
+            style={{ marginBottom: 20 }}
+          />
+          
+          <div>
+            <Button type="primary" onClick={() => navigate('/login')}>
+              返回登录
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="login-container">

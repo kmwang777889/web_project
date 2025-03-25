@@ -132,6 +132,8 @@ export default {
   updateUser: (id, data) => apiRequest('put', `/users/${id}`, data),
   updatePassword: (id, data) => apiRequest('put', `/users/${id}/password`, data),
   uploadAvatar: (id, formData) => uploadFile(`/users/${id}`, formData),
+  approveUser: (id) => apiRequest('put', `/users/${id}/approve`, { status: 'active' }),
+  disableUser: (id) => apiRequest('put', `/users/${id}/disable`, { status: 'disabled' }),
   
   // 项目相关
   getProjects: (params) => {

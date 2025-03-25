@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../utils/api';
 import jwtDecode from 'jwt-decode';
+import { message } from 'antd';
 
 // 创建认证上下文
 const AuthContext = createContext();
@@ -31,8 +32,21 @@ export const AuthProvider = ({ children }) => {
             // 从服务器获取最新的用户信息
             try {
               const response = await api.getCurrentUser();
-              setCurrentUser(response.user);
-              console.log('成功加载用户信息:', response.user);
+              const user = response.user;
+              
+              // 检查用户状态
+              if (user.status === 'pending') {
+                message.error('您的账户正在审核中，请稍后再试');
+                localStorage.removeItem('token');
+                setCurrentUser(null);
+              } else if (user.status === 'disabled') {
+                message.error('您的账户已被禁用，请联系管理员');
+                localStorage.removeItem('token');
+                setCurrentUser(null);
+              } else {
+                setCurrentUser(user);
+                console.log('成功加载用户信息:', user);
+              }
             } catch (apiError) {
               console.error('获取用户信息失败:', apiError);
               localStorage.removeItem('token');
@@ -57,6 +71,16 @@ export const AuthProvider = ({ children }) => {
   // 处理认证响应的通用函数
   const handleAuthResponse = (response) => {
     const { token, user } = response;
+    
+    // 检查用户状态
+    if (user.status === 'pending') {
+      message.error('您的账户正在审核中，请稍后再试');
+      return null;
+    } else if (user.status === 'disabled') {
+      message.error('您的账户已被禁用，请联系管理员');
+      return null;
+    }
+    
     localStorage.setItem('token', token);
     setCurrentUser(user);
     return user;
@@ -66,17 +90,28 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await api.login({ username, password });
+      
+      // 检查用户状态
+      const user = response.user;
+      if (user.status === 'pending') {
+        message.error('您的账户正在审核中，请稍后再试');
+        return null;
+      } else if (user.status === 'disabled') {
+        message.error('您的账户已被禁用，请联系管理员');
+        return null;
+      }
+      
       return handleAuthResponse(response);
     } catch (error) {
       throw error;
     }
   };
   
-  // 注册函数
+  // 注册函数 - 保留但不再自动登录
   const register = async (userData) => {
     try {
       const response = await api.register(userData);
-      return handleAuthResponse(response);
+      return response;
     } catch (error) {
       throw error;
     }

@@ -10,7 +10,8 @@ import {
   DownOutlined,
   RadarChartOutlined,
   FileOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -107,6 +108,9 @@ const MainLayout = () => {
       return 'admin-tickets';
     }
     
+    // 对于用户管理页面
+    if (path.startsWith('/admin/users')) return 'admin-users';
+    
     // 对于普通用户，工单路径高亮"我的工单"菜单
     if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/admin/tickets')) return 'admin-tickets';
@@ -142,6 +146,11 @@ const MainLayout = () => {
           {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
             <Menu.Item key="admin-tickets" icon={<FileTextOutlined />}>
               <Link to="/admin/tickets">工单管理</Link>
+            </Menu.Item>
+          )}
+          {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+            <Menu.Item key="admin-users" icon={<TeamOutlined />}>
+              <Link to="/admin/users">用户管理</Link>
             </Menu.Item>
           )}
         </Menu>
