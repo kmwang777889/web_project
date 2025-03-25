@@ -18,7 +18,7 @@ async function startServer() {
   try {
     console.log('正在启动服务器...');
     console.log('环境:', process.env.NODE_ENV);
-    console.log('允许的客户端域名:', process.env.CLIENT_URL || 'http://localhost:3000');
+    console.log('允许的客户端域名:', process.env.CLIENT_URL || 'https://www.pipecode.asia');
     
     // 首先初始化数据库
     const dbInitialized = await initializeDatabase();
