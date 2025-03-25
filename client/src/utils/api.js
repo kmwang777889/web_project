@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const baseURL = process.env.REACT_APP_API_URL || 'https://api.pipecode.asia/api';
 
 // 创建 axios 实例
 const instance = axios.create({
@@ -48,7 +48,9 @@ export const setupAxiosInterceptors = (navigate) => {
         console.error('请求配置错误:', error.message);
       }
       
-      if (error.response?.status === 401) {
+      // 对于401错误，如果是登录请求，不要自动重定向
+      // 这样可以让登录组件自己处理错误
+      if (error.response?.status === 401 && error.config && error.config.url && !error.config.url.includes('/auth/login')) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         if (navigate) {
@@ -62,7 +64,8 @@ export const setupAxiosInterceptors = (navigate) => {
       return Promise.reject({
         message: error.response?.data?.message || error.message || '未知错误',
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
+        response: error.response // 添加完整的响应对象
       });
     }
   );
@@ -115,17 +118,25 @@ export const apiRequest = async (method, url, data = null, config = {}) => {
   } catch (error) {
     console.error(`API请求错误 [${method.toUpperCase()} ${url}]:`, error);
     
-    if (error.response) {
+    // 创建一个标准化的错误对象
+    let errorObj;
+    
+    if (error && error.response) {
       // 服务器响应了错误状态码
       const errorMessage = error.response.data?.message || '请求失败';
-      throw new Error(errorMessage);
-    } else if (error.request) {
+      errorObj = new Error(errorMessage);
+      errorObj.response = error.response;
+      errorObj.status = error.response.status;
+    } else if (error && error.request) {
       // 请求已发送但没有收到响应
-      throw new Error('无法连接到服务器，请检查网络连接');
+      errorObj = new Error('无法连接到服务器，请检查网络连接');
+      errorObj.isNetwork = true;
     } else {
       // 请求设置时发生错误
-      throw new Error('请求错误: ' + (error.message || '未知错误'));
+      errorObj = new Error('请求错误: ' + (error && error.message ? error.message : '未知错误'));
     }
+    
+    throw errorObj;
   }
 };
 

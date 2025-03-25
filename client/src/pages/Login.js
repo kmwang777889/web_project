@@ -20,7 +20,7 @@ const Login = () => {
       try {
         setApiStatus({ checking: true });
         // 尝试ping API
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+        const apiUrl = process.env.REACT_APP_API_URL || 'https://api.pipecode.asia/api';
         console.log('正在检查API状态:', apiUrl);
         
         const response = await axios.get(`${apiUrl}/auth/ping`, { 
@@ -67,24 +67,29 @@ const Login = () => {
       console.error('登录失败:', error);
       
       // 显示更详细的错误信息
-      if (error.status === 401) {
+      if (error && error.response && error.response.status === 401) {
         setErrorMessage('用户名或密码错误');
         message.error('用户名或密码错误');
-      } else if (error.message && error.message.includes('pending')) {
+      } else if (error && error.status === 401) {
+        setErrorMessage('用户名或密码错误');
+        message.error('用户名或密码错误');
+      } else if (error && error.message && error.message.includes('pending')) {
         setErrorMessage('您的账户正在审核中，请稍后再试');
         message.error('您的账户正在审核中，请稍后再试');
-      } else if (error.message && error.message.includes('disabled')) {
+      } else if (error && error.message && error.message.includes('disabled')) {
         setErrorMessage('您的账户已被禁用，请联系管理员');
         message.error('您的账户已被禁用，请联系管理员');
-      } else if (error.message && error.message.includes('network')) {
+      } else if (error && error.message && error.message.includes('network')) {
         setErrorMessage('网络错误，请检查您的网络连接或服务器状态');
         message.error('网络错误，请检查您的网络连接或服务器状态');
-      } else if (error.message && error.message.includes('Network Error')) {
-        setErrorMessage(`网络连接失败: 无法连接到API服务器 (${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'})`);
+      } else if (error && error.message && error.message.includes('Network Error')) {
+        setErrorMessage(`网络连接失败: 无法连接到API服务器 (${process.env.REACT_APP_API_URL || 'https://api.pipecode.asia/api'})`);
         message.error('无法连接到服务器，请检查网络设置或联系管理员');
       } else {
-        setErrorMessage('登录失败: ' + (error.message || '未知错误'));
-        message.error('登录失败: ' + (error.message || '未知错误'));
+        // 通用错误处理
+        const errorMsg = error && error.message ? error.message : '未知错误';
+        setErrorMessage('登录失败: ' + errorMsg);
+        message.error('登录失败: ' + errorMsg);
       }
     } finally {
       setLoading(false);

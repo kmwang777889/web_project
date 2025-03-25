@@ -115,9 +115,12 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('登录错误:', error);
       // 详细记录错误
-      if (error.response) {
+      if (error && error.response) {
         console.error('服务器响应状态:', error.response.status);
         console.error('服务器响应数据:', error.response.data);
+        
+        // 将错误对象扩展，添加状态码到主错误对象
+        error.status = error.response.status;
       }
       throw error;
     }
