@@ -6,6 +6,16 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+// API状态检查端点
+router.get('/ping', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'API服务器正常运行', 
+    environment: process.env.NODE_ENV,
+    serverTime: new Date().toISOString() 
+  });
+});
+
 // 注册用户
 router.post(
   '/register',

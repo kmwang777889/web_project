@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   // 初始化时从本地存储加载用户信息
   useEffect(() => {
     const loadUser = async () => {
+      console.log('正在加载用户信息...');
       const token = localStorage.getItem('token');
       
       if (token) {
@@ -31,7 +32,9 @@ export const AuthProvider = ({ children }) => {
           } else {
             // 从服务器获取最新的用户信息
             try {
+              console.log('正在从服务器获取用户信息...');
               const response = await api.getCurrentUser();
+              console.log('服务器响应:', response);
               const user = response.user;
               
               // 检查用户状态
@@ -49,6 +52,11 @@ export const AuthProvider = ({ children }) => {
               }
             } catch (apiError) {
               console.error('获取用户信息失败:', apiError);
+              // 详细记录错误
+              if (apiError.response) {
+                console.error('服务器响应状态:', apiError.response.status);
+                console.error('服务器响应数据:', apiError.response.data);
+              }
               localStorage.removeItem('token');
               setCurrentUser(null);
             }
@@ -89,7 +97,9 @@ export const AuthProvider = ({ children }) => {
   // 登录函数
   const login = async (username, password) => {
     try {
+      console.log('尝试登录用户:', username);
       const response = await api.login({ username, password });
+      console.log('登录响应:', response);
       
       // 检查用户状态
       const user = response.user;
@@ -103,6 +113,12 @@ export const AuthProvider = ({ children }) => {
       
       return handleAuthResponse(response);
     } catch (error) {
+      console.error('登录错误:', error);
+      // 详细记录错误
+      if (error.response) {
+        console.error('服务器响应状态:', error.response.status);
+        console.error('服务器响应数据:', error.response.data);
+      }
       throw error;
     }
   };

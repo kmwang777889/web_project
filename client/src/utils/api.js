@@ -5,7 +5,8 @@ const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 // 创建 axios 实例
 const instance = axios.create({
   baseURL,
-  timeout: 10000
+  timeout: 15000, // 增加超时时间到15秒
+  withCredentials: true // 添加这一行，确保跨域请求发送凭证
 });
 
 // 设置拦截器函数
@@ -17,6 +18,7 @@ export const setupAxiosInterceptors = (navigate) => {
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      console.log('发送请求到:', config.url, '环境API地址:', baseURL);
       return config;
     },
     (error) => {
@@ -33,6 +35,18 @@ export const setupAxiosInterceptors = (navigate) => {
     },
     (error) => {
       console.error('响应拦截器错误:', error);
+      
+      // 详细记录错误信息
+      if (error.response) {
+        console.error('服务器响应:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('未收到响应，请求配置:', error.request._currentUrl);
+        console.error('请求方法:', error.config?.method);
+        console.error('请求头:', error.config?.headers);
+        console.error('是否为HTTPS:', error.config?.url?.startsWith('https'));
+      } else {
+        console.error('请求配置错误:', error.message);
+      }
       
       if (error.response?.status === 401) {
         localStorage.removeItem('token');
@@ -61,12 +75,32 @@ setupAxiosInterceptors();
 export const apiRequest = async (method, url, data = null, config = {}) => {
   try {
     console.log(`发起API请求: ${method.toUpperCase()} ${url}`, config);
-    const response = await instance({
-      method,
-      url,
-      data,
-      ...config
-    });
+    
+    // 添加重试逻辑
+    let retries = 0;
+    const maxRetries = 2;
+    let response;
+    
+    while (retries <= maxRetries) {
+      try {
+        response = await instance({
+          method,
+          url,
+          data,
+          ...config
+        });
+        break; // 如果请求成功，跳出循环
+      } catch (retryError) {
+        if (retries === maxRetries || (retryError.response && retryError.response.status !== 0)) {
+          // 如果已达到最大重试次数或错误不是网络错误，则抛出错误
+          throw retryError;
+        }
+        console.log(`请求失败，第${retries + 1}次重试...`);
+        retries++;
+        // 等待一段时间再重试
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
     
     console.log(`API响应: ${method.toUpperCase()} ${url}`, response);
     
