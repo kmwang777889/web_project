@@ -166,7 +166,7 @@ const MainLayout = () => {
         <Outlet />
       </Content>
       <Footer style={{ textAlign: 'center', background: '#fff', padding: '12px' }}>
-        项目管理平台 ©2024 Created by Your Company
+        项目管理平台 ©2024 Created by Samuel | <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">皖ICP备2025079298号</a>
       </Footer>
       
       {/* 提交工单弹窗 */}
