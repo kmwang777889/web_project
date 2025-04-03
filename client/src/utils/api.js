@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const baseURL = process.env.REACT_APP_API_URL || 'https://api.pipecode.asia/api';
+const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
 
 // 创建 axios 实例
 const instance = axios.create({
@@ -335,21 +335,49 @@ export default {
     try {
       console.log('开始下载文件:', { url, filename });
       
-      // 确保URL以/开头
-      if (!url.startsWith('/')) {
-        url = '/' + url;
+      // 获取认证令牌
+      const token = localStorage.getItem('token');
+      
+      let fullUrl;
+      
+      // 检查是否为绝对URL（以http://或https://开头）
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        // 如果是完整URL，直接使用
+        fullUrl = url;
+        console.log('使用提供的完整URL:', fullUrl);
+      } else {
+        // 处理相对URL
+        // 确保URL以/开头
+        if (!url.startsWith('/')) {
+          url = '/' + url;
+        }
+        
+        // 构建完整URL
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+        
+        // 检查URL中是否有/api重复的情况
+        if (url.startsWith('/api/') && apiUrl.endsWith('/api')) {
+          // 如果传入的url已包含/api前缀，并且apiUrl也以/api结尾，则去掉url中的/api
+          const urlWithoutApi = url.substring(4); // 移除开头的'/api'
+          fullUrl = `${apiUrl}${urlWithoutApi}`;
+        } else {
+          fullUrl = `${apiUrl}${url}`;
+        }
       }
       
-      // 构建完整URL
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const fullUrl = `${apiUrl}${url}`;
       console.log('完整下载URL:', fullUrl);
       
-      // 使用fetch API下载文件
-      fetch(fullUrl)
+      // 使用fetch API下载文件，添加认证头
+      fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        credentials: 'include' // 包含cookie等凭证
+      })
         .then(response => {
           if (!response.ok) {
-            throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+            throw new Error(`下载失败: ${response.status}`);
           }
           return response.blob();
         })
@@ -376,14 +404,17 @@ export default {
         })
         .catch(error => {
           console.error('下载文件失败:', error);
-          // 显示错误消息
-          const { message } = require('antd');
-          message.error(`下载失败: ${error.message}`);
+          // 加载antd消息组件
+          import('antd').then(({ message }) => {
+            message.error(`下载文件失败: ${error.message}`);
+          });
         });
     } catch (error) {
       console.error('下载文件函数错误:', error);
-      const { message } = require('antd');
-      message.error(`下载过程出错: ${error.message}`);
+      // 加载antd消息组件
+      import('antd').then(({ message }) => {
+        message.error(`下载过程出错: ${error.message}`);
+      });
     }
   },
   

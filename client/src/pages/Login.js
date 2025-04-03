@@ -20,7 +20,8 @@ const Login = () => {
       try {
         setApiStatus({ checking: true });
         // 尝试ping API
-        const apiUrl = process.env.REACT_APP_API_URL || 'https://api.pipecode.asia/api';
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+
         console.log('正在检查API状态:', apiUrl);
         
         const response = await axios.get(`${apiUrl}/auth/ping`, { 
