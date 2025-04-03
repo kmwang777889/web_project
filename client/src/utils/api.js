@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+// 修改baseURL的定义，手动添加/api后缀
+const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+const baseURL = `${apiUrl}/api`;
 
 // 创建 axios 实例
 const instance = axios.create({
@@ -353,7 +355,7 @@ export default {
         }
         
         // 构建完整URL
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
         
         // 检查URL中是否有/api重复的情况
         if (url.startsWith('/api/') && apiUrl.endsWith('/api')) {

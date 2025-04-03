@@ -20,17 +20,18 @@ const Login = () => {
       try {
         setApiStatus({ checking: true });
         // 尝试ping API
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+        const pingUrl = `${apiUrl}/api/auth/ping`;
 
-        console.log('正在检查API状态:', apiUrl);
+        console.log('正在检查API状态:', pingUrl);
         
-        const response = await axios.get(`${apiUrl}/auth/ping`, { 
+        const response = await axios.get(pingUrl, { 
           timeout: 5000,
           withCredentials: true
         });
         
         if (response.status === 200) {
-          setApiStatus({ available: true, url: apiUrl });
+          setApiStatus({ available: true, url: pingUrl });
           console.log('API状态检查成功');
         } else {
           setApiStatus({ available: false, error: `服务器返回: ${response.status}` });
@@ -84,7 +85,8 @@ const Login = () => {
         setErrorMessage('网络错误，请检查您的网络连接或服务器状态');
         message.error('网络错误，请检查您的网络连接或服务器状态');
       } else if (error && error.message && error.message.includes('Network Error')) {
-        setErrorMessage(`网络连接失败: 无法连接到API服务器 (${process.env.REACT_APP_API_URL || 'https://api.pipecode.asia/api'})`);
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+        setErrorMessage(`网络连接失败: 无法连接到API服务器 (${apiUrl}/api)`);
         message.error('无法连接到服务器，请检查网络设置或联系管理员');
       } else {
         // 通用错误处理
@@ -114,7 +116,7 @@ const Login = () => {
         message="服务器连接问题"
         description={
           apiStatus.isNetwork 
-            ? `无法连接到API服务器 (${process.env.REACT_APP_API_URL})。请检查:
+            ? `无法连接到API服务器 (${process.env.REACT_APP_API_URL}/api)。请检查:
               1. 您的网络连接是否正常
               2. 服务器是否在运行
               3. 是否存在SSL证书问题
