@@ -50,6 +50,12 @@ app.use('/api/work-items', require('./routes/workItems'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 
+// 在所有API路由之后，添加通配符路由处理前端路由
+app.use(express.static(path.join(__dirname, '../client/build')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+});
+
 // 添加一个通用的错误处理中间件
 app.use((err, req, res, next) => {
   console.error('服务器错误:', err);
