@@ -217,6 +217,7 @@ const WorkItemDetail = () => {
         expectedCompletionDate: workItem.expectedCompletionDate ? dayjs(workItem.expectedCompletionDate) : null,
         scheduledStartDate: workItem.scheduledStartDate ? dayjs(workItem.scheduledStartDate) : null,
         scheduledEndDate: workItem.scheduledEndDate ? dayjs(workItem.scheduledEndDate) : null,
+        completionDate: workItem.completionDate ? dayjs(workItem.completionDate) : null,
       };
       
       // 单独处理附件
@@ -321,6 +322,10 @@ const WorkItemDetail = () => {
       
       if (values.scheduledEndDate) {
         values.scheduledEndDate = values.scheduledEndDate.format('YYYY-MM-DD');
+      }
+      
+      if (values.completionDate) {
+        values.completionDate = values.completionDate.format('YYYY-MM-DD');
       }
       
       // 创建FormData对象用于提交表单数据
@@ -1203,7 +1208,21 @@ const WorkItemDetail = () => {
             </div>
           )}
           
-          {isAdmin() && form.getFieldValue('status') === '已完成' && workItem.status !== '已完成' && (
+          {isAdmin() && (
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <Form.Item
+                name="completionDate"
+                label="完成日期"
+                style={{ flex: 1 }}
+                extra="可手动设置完成日期，否则在状态变为已完成时自动设置为当天"
+              >
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+              <div style={{ flex: 1 }}></div>
+            </div>
+          )}
+          
+          {isAdmin() && (
             <div style={{ display: 'flex', gap: '16px' }}>
               <Form.Item
                 name="actualHours"
@@ -1212,14 +1231,20 @@ const WorkItemDetail = () => {
               >
                 <Input type="number" min={0} step={0.5} />
               </Form.Item>
-              
+              <div style={{ flex: 1 }}></div>
+            </div>
+          )}
+          
+          {isAdmin() && form.getFieldValue('status') === '已完成' && workItem.status !== '已完成' && (
+            <div style={{ display: 'flex', gap: '16px' }}>
               <Form.Item
                 name="completionComment"
                 label="完成说明"
-                style={{ flex: 2 }}
+                style={{ flex: 1 }}
               >
                 <Input.TextArea rows={2} placeholder="请输入完成说明" />
               </Form.Item>
+              <div style={{ flex: 0 }}></div>
             </div>
           )}
           

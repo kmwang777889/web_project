@@ -966,20 +966,6 @@ const WorkItemList = () => {
               </Form.Item>
             </div>
           )}
-          
-          {isAdmin() && (
-            <div style={{ display: 'flex', gap: '16px' }}>
-              <Form.Item
-                name="completionDate"
-                label="完成日期"
-                style={{ flex: 1 }}
-                extra="可手动设置完成日期，否则在状态变为已完成时自动设置为当天"
-              >
-                <DatePicker style={{ width: '100%' }} />
-              </Form.Item>
-              <div style={{ flex: 1 }}></div>
-            </div>
-          )}
         </Form>
       </Modal>
     </div>

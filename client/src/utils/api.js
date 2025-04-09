@@ -181,6 +181,7 @@ export default {
   uploadAvatar: (id, formData) => uploadFile(`/users/${id}`, formData),
   approveUser: (id) => apiRequest('put', `/users/${id}/approve`, { status: 'active' }),
   disableUser: (id) => apiRequest('put', `/users/${id}/disable`, { status: 'disabled' }),
+  deleteUser: (id) => apiRequest('delete', `/users/${id}`),
   
   // 项目相关
   getProjects: (params) => {

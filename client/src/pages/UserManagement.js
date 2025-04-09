@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, Form, Input, Select, message, Tooltip, Badge } from 'antd';
-import { UserOutlined, CheckCircleOutlined, StopOutlined, EditOutlined, LockOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Modal, Form, Input, Select, message, Tooltip, Badge, Popconfirm } from 'antd';
+import { UserOutlined, CheckCircleOutlined, StopOutlined, EditOutlined, LockOutlined, DeleteOutlined } from '@ant-design/icons';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -110,6 +110,19 @@ const UserManagement = () => {
     } catch (error) {
       console.error('禁用用户失败:', error);
       message.error('禁用用户失败: ' + error.message);
+    }
+  };
+  
+  // 删除用户
+  const deleteUser = async (userId) => {
+    try {
+      await api.deleteUser(userId);
+      message.success('用户已删除');
+      // 更新用户列表
+      fetchUsers();
+    } catch (error) {
+      console.error('删除用户失败:', error);
+      message.error('删除用户失败: ' + error.message);
     }
   };
   
@@ -260,6 +273,24 @@ const UserManagement = () => {
               onClick={() => showPasswordModal(record)}
             />
           </Tooltip>
+          
+          {isSuperAdmin() && (
+            <Tooltip title="删除用户">
+              <Popconfirm
+                title="确定要删除此用户吗?"
+                onConfirm={() => deleteUser(record.id)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button 
+                  type="default" 
+                  danger
+                  icon={<DeleteOutlined />} 
+                  size="small"
+                />
+              </Popconfirm>
+            </Tooltip>
+          )}
         </Space>
       ),
     },
