@@ -82,6 +82,14 @@ const Register = () => {
           <Text type="secondary">创建新账户</Text>
         </div>
         
+        <Alert
+          message="用户须知"
+          description="用户名请填写真实姓名，邮箱填写公司邮箱"
+          type="info"
+          showIcon
+          style={{ marginBottom: 20 }}
+        />
+        
         <Spin spinning={loading}>
           <Form
             name="register_form"
@@ -92,10 +100,11 @@ const Register = () => {
             <Form.Item
               name="username"
               rules={[{ required: true, message: '请输入用户名' }]}
+              tooltip="请填写您的真实姓名"
             >
               <Input 
                 prefix={<UserOutlined />} 
-                placeholder="用户名" 
+                placeholder="用户名（真实姓名）" 
               />
             </Form.Item>
             
@@ -118,10 +127,11 @@ const Register = () => {
                 { required: false, message: '请输入邮箱' },
                 { type: 'email', message: '请输入有效的邮箱地址' }
               ]}
+              tooltip="请填写您的公司邮箱"
             >
               <Input 
                 prefix={<MailOutlined />} 
-                placeholder="邮箱" 
+                placeholder="公司邮箱" 
               />
             </Form.Item>
             
