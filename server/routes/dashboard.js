@@ -20,17 +20,93 @@ router.get('/stats', authenticate, async (req, res) => {
     const completedCount = await WorkItem.count({
       where: {
         ...whereClause,
-        status: '已完成'
+        status: '已完成',
+        [Op.or]: [
+          // 已设置排期时间的工作项
+          {
+            scheduledEndDate: {
+              [Op.not]: null,
+              [Op.lte]: new Date()
+            }
+          },
+          // 已设置期望完成时间的工作项
+          {
+            expectedCompletionDate: {
+              [Op.not]: null,
+              [Op.lte]: new Date()
+            }
+          },
+          // 未设置任何时间但已完成的工作项
+          {
+            [Op.and]: [
+              { scheduledEndDate: null },
+              { expectedCompletionDate: null }
+            ]
+          }
+        ]
       }
     });
     
-    // 获取待完成工作项数量
+    // 获取应完成工作项总数（已到期或当前时间范围内的工作项）
+    const totalDueItems = await WorkItem.count({
+      where: {
+        ...whereClause,
+        [Op.or]: [
+          // 已设置排期时间的工作项
+          {
+            scheduledEndDate: {
+              [Op.not]: null,
+              [Op.lte]: new Date()
+            }
+          },
+          // 已设置期望完成时间的工作项
+          {
+            expectedCompletionDate: {
+              [Op.not]: null,
+              [Op.lte]: new Date()
+            }
+          },
+          // 已完成的工作项（包括未设置时间的）
+          {
+            status: '已完成'
+          }
+        ]
+      }
+    });
+    
+    // 获取待完成工作项数量（不包括未来排期的工作项）
     const pendingCount = await WorkItem.count({
       where: {
         ...whereClause,
         status: {
           [Op.notIn]: ['已完成', '关闭']
-        }
+        },
+        [Op.or]: [
+          // 已过期未完成的工作项
+          {
+            [Op.or]: [
+              {
+                scheduledEndDate: {
+                  [Op.not]: null,
+                  [Op.lte]: new Date()
+                }
+              },
+              {
+                expectedCompletionDate: {
+                  [Op.not]: null,
+                  [Op.lte]: new Date()
+                }
+              }
+            ]
+          },
+          // 未设置任何时间的未完成工作项
+          {
+            [Op.and]: [
+              { scheduledEndDate: null },
+              { expectedCompletionDate: null }
+            ]
+          }
+        ]
       }
     });
     
@@ -63,6 +139,7 @@ router.get('/stats', authenticate, async (req, res) => {
     res.json({
       completedCount,
       pendingCount,
+      totalDueItems,
       dailyAverage
     });
   } catch (error) {

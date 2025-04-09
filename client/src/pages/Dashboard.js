@@ -98,7 +98,8 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     completedCount: 0,
     pendingCount: 0,
-    dailyAverage: 0
+    dailyAverage: 0,
+    totalDueItems: 0
   });
   const [pendingItems, setPendingItems] = useState([]);
   const [filteredPendingItems, setFilteredPendingItems] = useState([]);
@@ -394,9 +395,8 @@ const Dashboard = () => {
   const inProgressCount = projects && projects.length > 0 ? projects.filter(p => p.status === '进行中').length : 0;
   const completedCount = projects && projects.length > 0 ? projects.filter(p => p.status === '已完成').length : 0;
   
-  // 计算工作项完成率，避免除以零
-  const totalWorkItems = (stats.completedCount || 0) + (stats.pendingCount || 0);
-  const completionRate = totalWorkItems > 0 ? Math.round((stats.completedCount / totalWorkItems) * 100) : 0;
+  // 计算工作项完成率，使用应完成工作项总数作为基数
+  const completionRate = stats.totalDueItems > 0 ? Math.round((stats.completedCount / stats.totalDueItems) * 100) : 0;
   
   // 计算待处理工作项优先级数量，确保数据存在
   const urgentCount = pendingItems && pendingItems.length > 0 ? pendingItems.filter(i => i.priority === '紧急').length : 0;
@@ -460,7 +460,7 @@ const Dashboard = () => {
               </span>
               <span>
                 <i className="dot" style={{ backgroundColor: '#8c8c8c' }}></i>
-                总数：{totalWorkItems}
+                应完成：{stats.totalDueItems || 0}
               </span>
             </div>
           </StatisticCard>
