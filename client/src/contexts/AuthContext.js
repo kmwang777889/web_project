@@ -95,10 +95,10 @@ export const AuthProvider = ({ children }) => {
   };
   
   // 登录函数
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
-      console.log('尝试登录用户:', username);
-      const response = await api.login({ username, password });
+      console.log('尝试登录用户:', email);
+      const response = await api.login({ email, password });
       console.log('登录响应:', response);
       
       // 检查用户状态

@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', authenticate, isAdmin, async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: ['id', 'username', 'phone', 'brand', 'role', 'status', 'avatar', 'createdAt', 'updatedAt']
+      attributes: ['id', 'username', 'phone', 'email', 'brand', 'role', 'status', 'avatar', 'createdAt', 'updatedAt']
     });
     res.json(users);
   } catch (error) {
@@ -46,7 +46,7 @@ router.get('/:id', authenticate, async (req, res) => {
     }
     
     const user = await User.findByPk(id, {
-      attributes: ['id', 'username', 'phone', 'brand', 'role', 'status', 'avatar', 'createdAt', 'updatedAt']
+      attributes: ['id', 'username', 'phone', 'email', 'brand', 'role', 'status', 'avatar', 'createdAt', 'updatedAt']
     });
     
     if (!user) {
@@ -68,6 +68,7 @@ router.put(
   handleUploadError,
   [
     body('phone').optional().notEmpty().withMessage('手机号不能为空'),
+    body('email').optional().isEmail().withMessage('请输入有效的邮箱地址'),
     body('brand').optional().isIn(['EL', 'CL', 'MAC', 'DA', 'LAB', 'OR', 'Dr.jart+', 'IT']).withMessage('所属品牌无效'),
     body('status').optional().isIn(['active', 'disabled', 'pending']).withMessage('状态值无效')
   ],
@@ -96,6 +97,7 @@ router.put(
       const updateData = {};
       
       if (req.body.phone) updateData.phone = req.body.phone;
+      if (req.body.email) updateData.email = req.body.email;
       if (req.body.brand) updateData.brand = req.body.brand;
       
       // 如果有上传头像
@@ -127,6 +129,7 @@ router.put(
           id: user.id,
           username: user.username,
           phone: user.phone,
+          email: user.email,
           brand: user.brand,
           role: user.role,
           status: user.status,

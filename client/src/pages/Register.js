@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Typography, Select, message, Spin, Alert } from 'antd';
-import { UserOutlined, LockOutlined, PhoneOutlined, BankOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, PhoneOutlined, BankOutlined, MailOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
@@ -109,6 +109,19 @@ const Register = () => {
               <Input 
                 prefix={<PhoneOutlined />} 
                 placeholder="手机号" 
+              />
+            </Form.Item>
+            
+            <Form.Item
+              name="email"
+              rules={[
+                { required: false, message: '请输入邮箱' },
+                { type: 'email', message: '请输入有效的邮箱地址' }
+              ]}
+            >
+              <Input 
+                prefix={<MailOutlined />} 
+                placeholder="邮箱" 
               />
             </Form.Item>
             

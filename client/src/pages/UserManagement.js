@@ -41,6 +41,7 @@ const UserManagement = () => {
     form.setFieldsValue({
       username: user.username,
       phone: user.phone,
+      email: user.email,
       brand: user.brand,
       role: user.role,
       status: user.status
@@ -151,6 +152,11 @@ const UserManagement = () => {
       title: '手机号',
       dataIndex: 'phone',
       key: 'phone',
+    },
+    {
+      title: '邮箱',
+      dataIndex: 'email',
+      key: 'email',
     },
     {
       title: '品牌',
@@ -344,6 +350,17 @@ const UserManagement = () => {
             ]}
           >
             <Input placeholder="手机号" />
+          </Form.Item>
+          
+          <Form.Item
+            name="email"
+            label="邮箱"
+            rules={[
+              { required: false, message: '请输入邮箱' },
+              { type: 'email', message: '请输入有效的邮箱地址' }
+            ]}
+          >
+            <Input placeholder="邮箱" />
           </Form.Item>
           
           <Form.Item

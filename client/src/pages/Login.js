@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Typography, message, Spin, Alert } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
@@ -52,14 +52,14 @@ const Login = () => {
   
   // 处理登录表单提交
   const handleSubmit = async (values) => {
-    const { username, password } = values;
+    const { email, password } = values;
     
     setLoading(true);
     setErrorMessage('');
-    console.log('尝试登录:', username, '环境API地址:', process.env.REACT_APP_API_URL);
+    console.log('尝试登录:', email, '环境API地址:', process.env.REACT_APP_API_URL);
     
     try {
-      const user = await login(username, password);
+      const user = await login(email, password);
       if (user) {
         message.success('登录成功');
         navigate('/');
@@ -70,11 +70,11 @@ const Login = () => {
       
       // 显示更详细的错误信息
       if (error && error.response && error.response.status === 401) {
-        setErrorMessage('用户名或密码错误');
-        message.error('用户名或密码错误');
+        setErrorMessage('邮箱或密码错误');
+        message.error('邮箱或密码错误');
       } else if (error && error.status === 401) {
-        setErrorMessage('用户名或密码错误');
-        message.error('用户名或密码错误');
+        setErrorMessage('邮箱或密码错误');
+        message.error('邮箱或密码错误');
       } else if (error && error.message && error.message.includes('pending')) {
         setErrorMessage('您的账户正在审核中，请稍后再试');
         message.error('您的账户正在审核中，请稍后再试');
@@ -148,12 +148,15 @@ const Login = () => {
             size="large"
           >
             <Form.Item
-              name="username"
-              rules={[{ required: true, message: '请输入用户名' }]}
+              name="email"
+              rules={[
+                { required: true, message: '请输入邮箱' },
+                { type: 'email', message: '请输入有效的邮箱地址' }
+              ]}
             >
               <Input 
-                prefix={<UserOutlined />} 
-                placeholder="用户名" 
+                prefix={<MailOutlined />} 
+                placeholder="邮箱" 
               />
             </Form.Item>
             

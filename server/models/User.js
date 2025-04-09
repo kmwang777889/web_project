@@ -31,6 +31,14 @@ const User = sequelize.define('User', {
       notEmpty: true
     }
   },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true,
+    validate: {
+      isEmail: true
+    }
+  },
   brand: {
     type: DataTypes.ENUM('EL', 'CL', 'MAC', 'DA', 'LAB', 'OR', 'Dr.jart+', 'IT'),
     allowNull: false

@@ -29,6 +29,7 @@ router.post(
       return true;
     }),
     body('phone').notEmpty().withMessage('手机号不能为空'),
+    body('email').optional().isEmail().withMessage('请输入有效的邮箱地址'),
     body('brand').isIn(['EL', 'CL', 'MAC', 'DA', 'LAB', 'OR', 'Dr.jart+', 'IT']).withMessage('所属品牌无效')
   ],
   async (req, res) => {
@@ -39,7 +40,7 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { username, password, phone, brand } = req.body;
+      const { username, password, phone, email, brand } = req.body;
 
       // 检查用户名是否已存在
       const existingUser = await User.findOne({ where: { username } });
@@ -53,11 +54,20 @@ router.post(
         return res.status(400).json({ message: '手机号已被注册' });
       }
 
+      // 如果提供了邮箱，检查邮箱是否已存在
+      if (email) {
+        const existingEmail = await User.findOne({ where: { email } });
+        if (existingEmail) {
+          return res.status(400).json({ message: '邮箱已被注册' });
+        }
+      }
+
       // 创建新用户
       const user = await User.create({
         username,
         password,
         phone,
+        email,
         brand,
         role: 'user' // 默认角色
       });
@@ -76,6 +86,7 @@ router.post(
           id: user.id,
           username: user.username,
           phone: user.phone,
+          email: user.email,
           brand: user.brand,
           role: user.role
         }
@@ -91,7 +102,7 @@ router.post(
 router.post(
   '/login',
   [
-    body('username').notEmpty().withMessage('用户名不能为空'),
+    body('email').notEmpty().withMessage('邮箱不能为空').isEmail().withMessage('请输入有效的邮箱地址'),
     body('password').notEmpty().withMessage('密码不能为空')
   ],
   async (req, res) => {
@@ -102,23 +113,23 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { username, password } = req.body;
+      const { email, password } = req.body;
 
       // 查找用户
-      const user = await User.findOne({ where: { username } });
+      const user = await User.findOne({ where: { email } });
       if (!user) {
-        return res.status(401).json({ message: '用户名或密码错误' });
+        return res.status(401).json({ message: '邮箱或密码错误' });
       }
 
       // 验证密码
       const isPasswordValid = await user.validatePassword(password);
       if (!isPasswordValid) {
-        return res.status(401).json({ message: '用户名或密码错误' });
+        return res.status(401).json({ message: '邮箱或密码错误' });
       }
 
       // 生成JWT令牌
       const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
+        { id: user.id, username: user.username, email: user.email, role: user.role },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN }
       );
@@ -130,6 +141,7 @@ router.post(
           id: user.id,
           username: user.username,
           phone: user.phone,
+          email: user.email,
           brand: user.brand,
           role: user.role,
           status: user.status,
@@ -151,6 +163,7 @@ router.get('/me', authenticate, async (req, res) => {
         id: req.user.id,
         username: req.user.username,
         phone: req.user.phone,
+        email: req.user.email,
         brand: req.user.brand,
         role: req.user.role,
         status: req.user.status,
