@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', authenticate, isAdmin, async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: ['id', 'username', 'phone', 'brand', 'role', 'avatar', 'createdAt', 'updatedAt']
+      attributes: ['id', 'username', 'phone', 'brand', 'role', 'status', 'avatar', 'createdAt', 'updatedAt']
     });
     res.json(users);
   } catch (error) {
@@ -46,7 +46,7 @@ router.get('/:id', authenticate, async (req, res) => {
     }
     
     const user = await User.findByPk(id, {
-      attributes: ['id', 'username', 'phone', 'brand', 'role', 'avatar', 'createdAt', 'updatedAt']
+      attributes: ['id', 'username', 'phone', 'brand', 'role', 'status', 'avatar', 'createdAt', 'updatedAt']
     });
     
     if (!user) {
@@ -68,7 +68,8 @@ router.put(
   handleUploadError,
   [
     body('phone').optional().notEmpty().withMessage('手机号不能为空'),
-    body('brand').optional().isIn(['EL', 'CL', 'MAC', 'DA', 'LAB', 'OR', 'Dr.jart+', 'IT']).withMessage('所属品牌无效')
+    body('brand').optional().isIn(['EL', 'CL', 'MAC', 'DA', 'LAB', 'OR', 'Dr.jart+', 'IT']).withMessage('所属品牌无效'),
+    body('status').optional().isIn(['active', 'disabled', 'pending']).withMessage('状态值无效')
   ],
   async (req, res) => {
     try {
@@ -102,11 +103,18 @@ router.put(
         updateData.avatar = `/uploads/images/${req.file.filename}`;
       }
       
-      // 只有管理员可以修改角色
-      if (req.body.role && (req.user.role === 'admin' || req.user.role === 'super_admin')) {
+      // 只有管理员可以修改角色和状态
+      if ((req.user.role === 'admin' || req.user.role === 'super_admin')) {
         // 超级管理员可以设置任何角色，普通管理员不能设置超级管理员
-        if (req.user.role === 'super_admin' || req.body.role !== 'super_admin') {
-          updateData.role = req.body.role;
+        if (req.body.role) {
+          if (req.user.role === 'super_admin' || req.body.role !== 'super_admin') {
+            updateData.role = req.body.role;
+          }
+        }
+        
+        // 允许管理员更新用户状态
+        if (req.body.status) {
+          updateData.status = req.body.status;
         }
       }
       
@@ -121,6 +129,7 @@ router.put(
           phone: user.phone,
           brand: user.brand,
           role: user.role,
+          status: user.status,
           avatar: user.avatar,
           updatedAt: user.updatedAt
         }

@@ -59,15 +59,13 @@ const UserManagement = () => {
   const handleEditSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const response = await api.updateUser(currentUser.id, values);
+      await api.updateUser(currentUser.id, values);
       
       message.success('用户信息更新成功');
       setEditModalVisible(false);
       
-      // 更新用户列表中的数据
-      setUsers(users.map(user => 
-        user.id === currentUser.id ? response.user : user
-      ));
+      // 更新用户列表，直接刷新获取最新数据而不是本地更新
+      fetchUsers();
       
     } catch (error) {
       console.error('更新用户信息失败:', error);

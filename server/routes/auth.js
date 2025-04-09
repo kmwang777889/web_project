@@ -132,6 +132,7 @@ router.post(
           phone: user.phone,
           brand: user.brand,
           role: user.role,
+          status: user.status,
           avatar: user.avatar
         }
       });
@@ -152,6 +153,7 @@ router.get('/me', authenticate, async (req, res) => {
         phone: req.user.phone,
         brand: req.user.brand,
         role: req.user.role,
+        status: req.user.status,
         avatar: req.user.avatar
       }
     });
